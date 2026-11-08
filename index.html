@@ -1,0 +1,2033 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CylinderFlow — 2D Lattice Boltzmann Cylinder-Flow Simulator</title>
+<style>
+:root{
+  --bg:#0a0e16; --panel:#111827; --panel2:#0f1522; --line:#1f2a3c; --line2:#2a3850;
+  --text:#e6ebf2; --muted:#93a1b5; --dim:#64748b;
+  --accent:#38bdf8; --accent2:#818cf8; --ok:#34d399; --warn:#fbbf24; --bad:#f87171;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --r:10px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);font:13px/1.45 var(--sans)}
+button,input,select{font:inherit;color:inherit}
+a{color:var(--accent)}
+/* ---------- header ---------- */
+header{display:flex;align-items:center;gap:14px;padding:10px 16px;border-bottom:1px solid var(--line);background:linear-gradient(180deg,#0f1625,#0b111c);position:sticky;top:0;z-index:20}
+.brand{display:flex;align-items:center;gap:10px;min-width:0}
+.brand svg{flex:none}
+.brand h1{font-size:16px;margin:0;letter-spacing:.2px;white-space:nowrap}
+.brand small{display:block;color:var(--muted);font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.status{display:flex;align-items:center;gap:8px;padding:5px 11px;border-radius:999px;border:1px solid var(--line2);background:var(--panel2);font-weight:600;font-size:12px;white-space:nowrap}
+.status .dot{width:9px;height:9px;border-radius:50%;background:var(--dim)}
+.status.running .dot{background:var(--ok);box-shadow:0 0 0 0 rgba(52,211,153,.6);animation:pulse 1.6s infinite}
+.status.paused .dot{background:var(--warn)}
+.status.unstable{border-color:#7f1d1d;color:#fecaca}.status.unstable .dot{background:var(--bad)}
+.status.pending .dot{background:var(--accent2)}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(52,211,153,.55)}70%{box-shadow:0 0 0 8px rgba(52,211,153,0)}100%{box-shadow:0 0 0 0 rgba(52,211,153,0)}}
+.hclock{font-family:var(--mono);color:var(--muted);font-size:12px;white-space:nowrap}
+.spacer{flex:1}
+.hbtns{display:flex;gap:6px}
+/* ---------- buttons & inputs ---------- */
+.btn{border:1px solid var(--line2);background:#162033;padding:6px 11px;border-radius:8px;cursor:pointer;transition:background .15s,border-color .15s;white-space:nowrap}
+.btn:hover{background:#1c2940;border-color:#3a4c6b}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.primary{background:#0c4a6e;border-color:#0e7490}.btn.primary:hover{background:#075985}
+.btn.go{background:#065f46;border-color:#059669}.btn.go:hover{background:#047857}
+.btn.ghost{background:transparent}
+.btn.small{padding:3px 8px;font-size:12px}
+.btn.sel{background:#0c4a6e;border-color:var(--accent)}
+.row{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.grow{flex:1}
+select,input[type=number],input[type=text]{background:#0b1220;border:1px solid var(--line2);border-radius:7px;padding:5px 7px;width:100%}
+input[type=number]{font-family:var(--mono)}
+input[type=range]{width:100%;accent-color:var(--accent)}
+label.chk{display:flex;align-items:center;gap:7px;cursor:pointer;color:var(--text)}
+/* ---------- layout ---------- */
+.layout{display:grid;grid-template-columns:300px minmax(0,1fr) 320px;grid-template-areas:"left center right";gap:12px;padding:12px;max-width:2000px;margin:0 auto;align-items:start}
+#left{grid-area:left}#center{grid-area:center;min-width:0}#right{grid-area:right}#bottom{min-width:0}
+@media (max-width:1280px){.layout{grid-template-columns:300px minmax(0,1fr);grid-template-areas:"left center" "right center"}#right{align-self:start}}
+@media (max-width:820px){.layout{grid-template-columns:1fr;grid-template-areas:"center" "right" "left"}header{flex-wrap:wrap}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:12px;margin-bottom:12px}
+.card h2{font-size:11.5px;text-transform:uppercase;letter-spacing:.9px;color:var(--muted);margin:0 0 10px;font-weight:650;display:flex;align-items:center;gap:8px}
+.card h2 .tag{margin-left:auto;text-transform:none;letter-spacing:0;font-weight:500;color:var(--dim);font-size:11px}
+.field{margin-bottom:10px}
+.field .lab{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:3px;color:var(--muted);font-size:12px}
+.field .lab b{color:var(--text);font-family:var(--mono);font-weight:600}
+.field .hint{color:var(--dim);font-size:11px;margin-top:2px}
+.seg{display:flex;border:1px solid var(--line2);border-radius:8px;overflow:hidden}
+.seg button{flex:1;border:0;background:#0f1828;padding:5px 6px;cursor:pointer;font-size:12px;border-right:1px solid var(--line2)}
+.seg button:last-child{border-right:0}
+.seg button.on{background:#0c4a6e;color:#e0f2fe}
+.presets{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.preset{text-align:left;border:1px solid var(--line2);background:#0f1828;border-radius:8px;padding:7px 8px;cursor:pointer}
+.preset:hover{border-color:var(--accent)}
+.preset b{display:block;font-size:12.5px}.preset span{color:var(--muted);font-size:11px}
+.derived{display:grid;grid-template-columns:1fr auto;gap:2px 10px;font-size:12px;margin-top:4px}
+.derived span:nth-child(odd){color:var(--muted)}.derived span:nth-child(even){font-family:var(--mono);text-align:right}
+.msgs{margin-top:8px;display:flex;flex-direction:column;gap:5px}
+.msg{font-size:11.5px;padding:6px 8px;border-radius:7px;border:1px solid}
+.msg.err{background:#2a1215;border-color:#7f1d1d;color:#fecaca}
+.msg.warn{background:#2a2110;border-color:#78590f;color:#fde68a}
+.msg.ok{background:#0f2a22;border-color:#14532d;color:#bbf7d0}
+.msg.info{background:#0f1f33;border-color:#1e3a5f;color:#bae6fd}
+/* ---------- simulation card ---------- */
+#simcard{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:10px;margin-bottom:12px;position:relative}
+#simcard:fullscreen{background:var(--bg);padding:16px;display:flex;flex-direction:column;justify-content:center;border-radius:0}
+.simbar{display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap}
+.vtabs{display:flex;gap:4px;flex-wrap:wrap}
+.vtabs button{border:1px solid var(--line2);background:#0f1828;border-radius:7px;padding:5px 10px;cursor:pointer;font-size:12px}
+.vtabs button.on{background:#0c4a6e;border-color:var(--accent);color:#e0f2fe}
+#canvasWrap{position:relative;width:100%;background:#05080e;border-radius:8px;overflow:hidden;border:1px solid var(--line)}
+#simCanvas{display:block;width:100%;cursor:crosshair}
+#probe{position:absolute;pointer-events:none;background:rgba(10,14,22,.92);border:1px solid var(--line2);border-radius:8px;padding:6px 8px;font:11.5px/1.45 var(--mono);display:none;white-space:nowrap;z-index:3}
+.cbarRow{display:flex;align-items:center;gap:10px;margin-top:8px}
+#cbar{flex:1;height:26px;min-width:0}
+.legendnote{color:var(--dim);font-size:11px;margin-top:4px}
+#banner{display:none;margin-top:8px}
+.overlayChecks{display:flex;gap:12px;flex-wrap:wrap;align-items:center;color:var(--muted);font-size:12px}
+.film{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;margin-top:8px}
+.film figure{margin:0;flex:none;cursor:pointer;border:1px solid var(--line2);border-radius:6px;overflow:hidden;background:#05080e}
+.film img{display:block;height:58px}
+.film figcaption{font:10.5px var(--mono);color:var(--muted);padding:2px 5px}
+/* ---------- metrics ---------- */
+.mgrid{display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 10px;font-size:12.5px}
+.mgrid .k{color:var(--muted);white-space:nowrap}
+.mgrid .v{font-family:var(--mono);text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12px}
+.mgrid .full{grid-column:1/-1;text-align:left}
+.mgrid .sep{grid-column:1/-1;border-top:1px solid var(--line);margin:5px 0}
+.big{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px}
+.big div{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:7px 9px}
+.big small{display:block;color:var(--muted);font-size:11px}
+.big b{font:600 18px var(--mono)}
+.badge{display:inline-block;padding:2px 7px;border-radius:999px;font-size:11px;font-weight:600;border:1px solid var(--line2)}
+.badge.shedding{background:#3b1d4a;border-color:#7e22ce;color:#e9d5ff}
+.badge.steady{background:#0f2a22;border-color:#15803d;color:#bbf7d0}
+.badge.transitional,.badge.developing{background:#2a2110;border-color:#a16207;color:#fde68a}
+.badge.unstable{background:#2a1215;border-color:#b91c1c;color:#fecaca}
+.est{color:var(--warn);font-size:10px;font-family:var(--sans);margin-left:3px}
+.qual{font-size:11px;color:var(--dim);margin-top:8px}
+/* ---------- charts ---------- */
+.charts{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:12px;margin-bottom:12px}
+.chart{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:10px 10px 6px}
+.chart h3{margin:0 0 4px;font-size:12px;color:var(--muted);font-weight:600;display:flex;justify-content:space-between;gap:6px}
+.chart h3 span{color:var(--dim);font-weight:400}
+.chart canvas{width:100%;height:190px;display:block}
+/* ---------- cases ---------- */
+table{width:100%;border-collapse:collapse;font-size:12px}
+th,td{padding:5px 7px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+th{color:var(--muted);font-weight:600;font-size:11.5px;position:sticky;top:0;background:var(--panel)}
+td:first-child,th:first-child{text-align:left}
+td input{min-width:120px;padding:3px 6px}
+td.l,th.l{text-align:left}
+.tablewrap{overflow-x:auto;max-height:340px}
+.empty{color:var(--dim);padding:14px 4px}
+/* ---------- drawer ---------- */
+#drawer{position:fixed;inset:0;background:rgba(3,6,12,.66);display:none;z-index:50;backdrop-filter:blur(2px)}
+#drawer.open{display:block}
+.dpanel{position:absolute;right:0;top:0;bottom:0;width:min(940px,100%);background:#0d1320;border-left:1px solid var(--line2);display:flex;flex-direction:column}
+.dhead{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--line)}
+.dtabs{display:flex;gap:4px;flex-wrap:wrap}
+.dbody{overflow-y:auto;padding:6px 26px 40px;flex:1}
+.doc{max-width:820px;font-size:13.5px;line-height:1.62}
+.doc h2{font-size:19px;margin:22px 0 6px;color:#f1f5f9}
+.doc h3{font-size:15px;margin:20px 0 4px;color:#e2e8f0}
+.doc h4{font-size:13.5px;margin:14px 0 2px;color:#cbd5e1}
+.doc p,.doc li{color:#cbd5e1}
+.doc .eq{font-family:"Cambria Math","STIX Two Math","Latin Modern Math",Georgia,serif;font-size:15px;background:#0a101b;border:1px solid var(--line);border-left:3px solid var(--accent);padding:8px 12px;margin:8px 0;border-radius:6px;overflow-x:auto;white-space:nowrap;color:#f1f5f9}
+.doc .eq i{font-style:italic}
+.doc .note{background:#0f1f33;border:1px solid #1e3a5f;border-radius:8px;padding:9px 12px;color:#bae6fd}
+.doc .caution{background:#2a2110;border:1px solid #78590f;border-radius:8px;padding:9px 12px;color:#fde68a}
+.doc table{font-size:12.5px;margin:8px 0}
+.doc td,.doc th{text-align:left}
+.doc code{font-family:var(--mono);font-size:12px;background:#0a101b;padding:1px 5px;border-radius:4px}
+.doc ol.refs li{margin-bottom:6px}
+.pass{color:var(--ok);font-weight:700}.fail{color:var(--bad);font-weight:700}
+#lightbox{position:fixed;inset:0;background:rgba(0,0,0,.85);display:none;align-items:center;justify-content:center;z-index:60;flex-direction:column;gap:8px}
+#lightbox img{max-width:94vw;max-height:84vh;border:1px solid var(--line2);border-radius:6px;image-rendering:auto}
+#lightbox div{color:var(--muted);font:12px var(--mono)}
+.kbd{font:11px var(--mono);border:1px solid var(--line2);border-bottom-width:2px;border-radius:4px;padding:0 4px;color:var(--muted)}
+footer{color:var(--dim);font-size:11.5px;text-align:center;padding:4px 12px 18px}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <svg width="34" height="34" viewBox="0 0 34 34" aria-hidden="true"><rect width="34" height="34" rx="8" fill="#0c4a6e"/><circle cx="11" cy="17" r="4.5" fill="#e0f2fe"/><path d="M16 13c4 0 4 3 8 3s4-3 7-3M16 21c4 0 4-3 8-3s4 3 7 3" stroke="#38bdf8" stroke-width="1.8" fill="none" stroke-linecap="round"/><path d="M2 9h6M2 25h6M2 17h2" stroke="#7dd3fc" stroke-width="1.6" stroke-linecap="round"/></svg>
+    <div><h1>CylinderFlow</h1><small>Interactive 2D CFD of flow past a circular cylinder · D2Q9 lattice Boltzmann (BGK)</small></div>
+  </div>
+  <div class="status" id="status"><span class="dot"></span><span id="statusText">Ready</span></div>
+  <div class="hclock" id="hclock">step 0 · t* 0.00</div>
+  <div class="spacer"></div>
+  <div class="hbtns">
+    <button class="btn ghost" data-doc="theory">Theory</button>
+    <button class="btn ghost" data-doc="about">About &amp; Methodology</button>
+    <button class="btn ghost" data-doc="verify">Verification</button>
+    <button class="btn ghost" data-doc="help">Help</button>
+  </div>
+</header>
+
+<div class="layout">
+<!-- ======================= LEFT: controls ======================= -->
+<aside id="left">
+  <div class="card">
+    <h2>Simulation <span class="tag"><span class="kbd">Space</span> run/pause · <span class="kbd">R</span> reset</span></h2>
+    <div class="row">
+      <button class="btn go grow" id="btnStart">▶ Start</button>
+      <button class="btn grow" id="btnPause" disabled>❚❚ Pause</button>
+      <button class="btn grow" id="btnReset">↺ Reset</button>
+    </div>
+    <div class="field" style="margin-top:10px">
+      <div class="lab">Simulation speed <b id="speedVal">12 steps/frame</b></div>
+      <input type="range" id="speed" min="1" max="60" step="1" value="12">
+      <div class="hint">Upper limit; each frame stops computing after ~14 ms so the page stays responsive.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Preset cases</h2>
+    <div class="presets" id="presets"></div>
+  </div>
+
+  <div class="card">
+    <h2>Parameters <span class="tag">lattice units</span></h2>
+    <div class="field">
+      <div class="lab">Grid resolution</div>
+      <select id="grid">
+        <option value="coarse">Coarse · 300 × 120 cells (fast)</option>
+        <option value="standard" selected>Standard · 400 × 160 cells</option>
+        <option value="fine">Fine · 600 × 240 cells (slow)</option>
+      </select>
+    </div>
+    <div class="field">
+      <div class="lab">Specify</div>
+      <div class="seg" id="driveSeg"><button data-v="Re" class="on">Reynolds number → ν</button><button data-v="nu">Viscosity ν → Re</button></div>
+    </div>
+    <div class="field" id="fRe">
+      <div class="lab">Reynolds number Re = UD/ν <b id="ReVal"></b></div>
+      <div class="row"><input type="range" id="Re" min="5" max="300" step="1" class="grow" style="width:auto"><input type="number" id="ReNum" min="5" max="300" step="1" style="width:72px"></div>
+    </div>
+    <div class="field" id="fNu" style="display:none">
+      <div class="lab">Kinematic viscosity ν (lattice) <b id="nuVal"></b></div>
+      <input type="range" id="nu" min="-2.6" max="-0.5" step="0.001">
+      <div class="hint">Logarithmic slider, 0.0025 – 0.32 lattice units.</div>
+    </div>
+    <div class="field">
+      <div class="lab">Inlet velocity U (lattice) <b id="UVal"></b></div>
+      <input type="range" id="U" min="0.02" max="0.15" step="0.005">
+      <div class="hint">Mach number Ma = U/c<sub>s</sub> = U√3. Keep Ma ≲ 0.2 (weakly compressible model).</div>
+    </div>
+    <div class="field">
+      <div class="lab">Cylinder diameter D (cells) <b id="DVal"></b></div>
+      <input type="range" id="D" min="8" max="40" step="1">
+    </div>
+    <div class="field">
+      <label class="chk"><input type="checkbox" id="seed" checked> Symmetry-breaking seed</label>
+      <div class="hint">One weak vortex (peak 0.1 U) placed behind the cylinder at t = 0, identical for every Re. Decays if the steady wake is stable; triggers shedding if not.</div>
+    </div>
+    <div class="field">
+      <label class="chk"><input type="checkbox" id="sponge" checked> Outlet absorbing layer</label>
+      <div class="hint">Viscosity rises smoothly over the last 15 % of the domain to damp waves reflected by the outflow boundary.</div>
+    </div>
+    <div class="derived" id="derived"></div>
+    <div class="msgs" id="paramMsgs"></div>
+    <button class="btn primary" id="btnApply" style="width:100%;margin-top:10px" disabled>Apply parameters &amp; reset</button>
+  </div>
+
+  <div class="card">
+    <h2>Physical-unit mapping <span class="tag">dynamic similarity</span></h2>
+    <div class="row" style="margin-bottom:8px">
+      <select id="fluid" class="grow" style="width:auto">
+        <option value="water">Water, 20 °C</option>
+        <option value="air">Air, 20 °C, 1 atm</option>
+      </select>
+      <input type="number" id="Dphys" value="10" min="0.01" step="any" style="width:80px" title="Physical diameter in mm">
+      <span style="color:var(--muted)">mm</span>
+    </div>
+    <div class="derived" id="phys"></div>
+    <div class="hint" style="margin-top:6px;color:var(--dim);font-size:11px">Matches Re only. The lattice Mach number is not matched: the physical flow is effectively incompressible.</div>
+  </div>
+</aside>
+
+<!-- ======================= CENTER: simulation ======================= -->
+<section id="center">
+  <div id="simcard">
+    <div class="simbar">
+      <div class="vtabs" id="vtabs">
+        <button data-v="velocity">Velocity |u|</button>
+        <button data-v="vorticity" class="on">Vorticity ω</button>
+        <button data-v="pressure">Pressure C<sub>p</sub></button>
+        <button data-v="streamlines">Streamlines</button>
+      </div>
+      <div class="spacer"></div>
+      <div class="overlayChecks">
+        <label class="chk"><input type="checkbox" id="ovParticles"> Tracer particles</label>
+        <label class="chk"><input type="checkbox" id="ovStream"> Streamline overlay</label>
+        <label class="chk" title="Scale factor applied to the colour range">Range ×<select id="rangeMul" style="width:62px;padding:2px 4px"><option>0.5</option><option selected>1</option><option>2</option><option>4</option></select></label>
+      </div>
+      <button class="btn small" id="btnSnap" title="Store a snapshot of the current field in the filmstrip">⧉ Snapshot</button>
+      <button class="btn small" id="btnFull" title="Full screen (F)">⛶ Full screen</button>
+    </div>
+    <div id="canvasWrap"><canvas id="simCanvas" width="800" height="320"></canvas><div id="probe"></div></div>
+    <div class="cbarRow"><canvas id="cbar" style="height:26px"></canvas></div>
+    <div class="legendnote" id="vizNote"></div>
+    <div id="banner"></div>
+    <div class="row" style="margin-top:8px;justify-content:space-between">
+      <label class="chk" style="color:var(--muted);font-size:12px"><input type="checkbox" id="autoSnap" checked> Auto-snapshot every 10 t* (wake history)</label>
+      <button class="btn small ghost" id="btnClearFilm">Clear filmstrip</button>
+    </div>
+    <div class="film" id="film"></div>
+  </div>
+<!-- ======================= BOTTOM: charts & cases ======================= -->
+<div id="bottom">
+  <div class="row" style="margin-bottom:8px;justify-content:space-between">
+    <div style="color:var(--muted);font-size:12px">All curves are recorded from the running solver (sampled every 0.05 t*). Shaded band = statistics window.</div>
+    <label class="chk" style="color:var(--muted);font-size:12px"><input type="checkbox" id="ovCases"> Overlay saved cases on C<sub>D</sub>/C<sub>L</sub> charts</label>
+  </div>
+  <div class="charts">
+    <div class="chart"><h3>Drag coefficient vs time <span>C<sub>D</sub>(t*)</span></h3><canvas id="chCd"></canvas></div>
+    <div class="chart"><h3>Lift coefficient vs time <span>C<sub>L</sub>(t*)</span></h3><canvas id="chCl"></canvas></div>
+    <div class="chart"><h3>Average velocity vs time <span>⟨u⟩/U, max|u|/U</span></h3><canvas id="chU"></canvas></div>
+    <div class="chart"><h3>Drag coefficient vs Reynolds number <span>saved cases</span></h3><canvas id="chRe"></canvas></div>
+    <div class="chart"><h3>Surface pressure distribution <span>C<sub>p</sub>(θ), current instant</span></h3><canvas id="chCp"></canvas></div>
+  </div>
+  <div class="card">
+    <h2>Case comparison <span class="tag"><label class="chk" style="display:inline-flex;color:var(--dim)"><input type="checkbox" id="showRef" checked> show published reference points on C<sub>D</sub>–Re chart</label></span></h2>
+    <div class="tablewrap"><table id="casesTable"></table></div>
+    <div class="row" style="margin-top:8px;justify-content:flex-end"><button class="btn small ghost" id="btnClearCases">Clear all cases</button></div>
+  </div>
+</div>
+</section>
+
+<!-- ======================= RIGHT: metrics ======================= -->
+<aside id="right">
+  <div class="card">
+    <h2>Live engineering metrics</h2>
+    <div class="big">
+      <div><small>Drag coefficient C<sub>D</sub></small><b id="mCd">—</b></div>
+      <div><small>Lift coefficient C<sub>L</sub></small><b id="mCl">—</b></div>
+      <div><small>Reynolds number</small><b id="mRe">—</b></div>
+      <div><small>Convective time t* = tU/D</small><b id="mT">—</b></div>
+    </div>
+    <div class="mgrid">
+      <span class="k">Wake state</span><span></span>
+      <span class="full" id="mState">—</span>
+      <span class="k">Window t*</span><span class="v" id="mWin">—</span>
+      <span class="k">Mean C<sub>D</sub></span><span class="v" id="mCdMean">—</span>
+      <span class="k">C<sub>L</sub> amp / rms</span><span class="v" id="mClAmp">—</span>
+      <span class="k">Strouhal St</span><span class="v" id="mSt">—</span>
+      <span class="k">L<sub>r</sub>/D</span><span class="v" id="mLr">—</span>
+      <span class="sep"></span>
+      <span class="k">Inlet U</span><span class="v" id="mU">—</span>
+      <span class="k">⟨u⟩/U (domain)</span><span class="v" id="mUavg">—</span>
+      <span class="k">max |u|/U</span><span class="v" id="mUmax">—</span>
+      <span class="k">Mach (max |u|)</span><span class="v" id="mMa">—</span>
+      <span class="k">⟨ρ⟩</span><span class="v" id="mRho">—</span>
+      <span class="k">ρ range</span><span class="v" id="mRhoR">—</span>
+      <span class="k">ν (lattice)</span><span class="v" id="mNu">—</span>
+      <span class="k">τ</span><span class="v" id="mTau">—</span>
+      <span class="sep"></span>
+      <span class="k">C<sub>p</sub> stagnation</span><span class="v" id="mCpF">—</span>
+      <span class="k">C<sub>p</sub> base</span><span class="v" id="mCpB">—</span>
+      <span class="k">C<sub>p</sub> min / max</span><span class="v" id="mCpR">—</span>
+      <span class="sep"></span>
+      <span class="k">Steps</span><span class="v" id="mSteps">—</span>
+      <span class="k">Speed</span><span class="v" id="mPerf">—</span>
+    </div>
+    <div class="qual">Statistics are taken over the window shown (start-up transient excluded). C<sub>D</sub>, C<sub>L</sub> from the momentum-exchange method on the staircase cylinder, per unit span, normalised with ½ρ₀U²D. Pressure from the LBM equation of state p = c<sub>s</sub>²ρ; C<sub>p</sub> is referenced to the mean pressure on the inlet plane. All values are simulation outputs; none are fitted or prescribed.</div>
+  </div>
+  <div class="card">
+    <h2>Observations</h2>
+    <button class="btn primary" id="btnSave" style="width:100%">＋ Save observation to comparison</button>
+    <div class="hint" style="color:var(--dim);font-size:11px;margin-top:6px">Stores the current parameters, windowed statistics and force history. Saved cases persist in this browser.</div>
+    <div class="row" style="margin-top:10px">
+      <button class="btn small grow" id="btnCSV">⇩ Time series CSV</button>
+      <button class="btn small grow" id="btnJSON">⇩ Full results JSON</button>
+    </div>
+    <div class="row" style="margin-top:6px">
+      <button class="btn small grow" id="btnField">⇩ Field CSV</button>
+      <button class="btn small grow" id="btnPNG">⇩ Image PNG</button>
+    </div>
+  </div>
+</aside>
+
+
+</div>
+<footer>CylinderFlow · single-file educational CFD application (HTML5 Canvas + vanilla JavaScript, no external resources). A simplified 2D lattice Boltzmann model, not an industrial Navier–Stokes solver.</footer>
+
+<!-- ======================= DOCUMENTATION DRAWER ======================= -->
+<div id="drawer">
+  <div class="dpanel">
+    <div class="dhead">
+      <div class="dtabs" id="dtabs">
+        <button class="btn small" data-t="theory">Theory</button>
+        <button class="btn small" data-t="about">About &amp; Methodology</button>
+        <button class="btn small" data-t="verify">Verification</button>
+        <button class="btn small" data-t="help">Help</button>
+      </div>
+      <div class="spacer"></div>
+      <button class="btn small" id="dclose">✕ Close</button>
+    </div>
+    <div class="dbody">
+
+<!-- ------------------------------ THEORY ------------------------------ -->
+<div class="doc" data-p="theory">
+<h2>Scientific background</h2>
+
+<h3>1. Reynolds number</h3>
+<p>The Reynolds number compares inertial to viscous effects:</p>
+<div class="eq">Re = <i>U D</i> / <i>ν</i></div>
+<p>where <i>U</i> is the free-stream velocity, <i>D</i> the cylinder diameter and <i>ν</i> the kinematic viscosity. Two flows with the same geometry and Re are dynamically similar, which is why one lattice simulation can stand for water, air or oil at the same Re (see the physical-unit panel).</p>
+<p>For a circular cylinder in unconfined flow the classic regimes are (Williamson, 1996): creeping flow without separation for Re ≲ 5; a steady, symmetric pair of recirculating vortices for about 5 ≲ Re ≲ 47; periodic laminar vortex shedding (the Kármán street) above Re ≈ 47; and three-dimensional wake instabilities beginning near Re ≈ 190. This app is 2-D, so above ~190 it shows what a strictly two-dimensional flow would do, not what a real cylinder does.</p>
+
+<h3>2. Navier–Stokes equations</h3>
+<p>The target physics is incompressible, Newtonian flow:</p>
+<div class="eq">∇·<b>u</b> = 0, &nbsp;&nbsp; ∂<b>u</b>/∂<i>t</i> + (<b>u</b>·∇)<b>u</b> = −(1/<i>ρ</i>)∇<i>p</i> + <i>ν</i>∇²<b>u</b></div>
+<p>A conventional CFD code (finite volume, as in ANSYS Fluent) discretises these equations directly. The lattice Boltzmann method instead evolves a discrete particle velocity distribution whose moments obey them approximately.</p>
+
+<h3>3. The lattice Boltzmann method</h3>
+<p>LBM tracks distribution functions <i>f<sub>i</sub></i>(<b>x</b>, <i>t</i>): the density of fictitious particles at node <b>x</b> moving with discrete velocity <b>c</b><sub><i>i</i></sub>. With the BGK (Bhatnagar–Gross–Krook) single-relaxation-time collision operator, one time step is</p>
+<div class="eq"><i>f<sub>i</sub></i>(<b>x</b> + <b>c</b><sub><i>i</i></sub>Δ<i>t</i>, <i>t</i> + Δ<i>t</i>) = <i>f<sub>i</sub></i>(<b>x</b>, <i>t</i>) − (1/<i>τ</i>) [ <i>f<sub>i</sub></i>(<b>x</b>, <i>t</i>) − <i>f<sub>i</sub></i><sup>eq</sup>(<b>x</b>, <i>t</i>) ]</div>
+<p>Density and momentum are moments of the distributions:</p>
+<div class="eq"><i>ρ</i> = Σ<sub><i>i</i></sub> <i>f<sub>i</sub></i>, &nbsp;&nbsp; <i>ρ</i><b>u</b> = Σ<sub><i>i</i></sub> <b>c</b><sub><i>i</i></sub> <i>f<sub>i</sub></i>, &nbsp;&nbsp; <i>p</i> = <i>c<sub>s</sub></i>² <i>ρ</i></div>
+<p>A Chapman–Enskog multiscale expansion shows that these moments satisfy the weakly compressible Navier–Stokes equations with errors of order Ma² (Ma = |<b>u</b>|/<i>c<sub>s</sub></i>), and that the relaxation time sets the viscosity:</p>
+<div class="eq"><i>ν</i> = <i>c<sub>s</sub></i>² (<i>τ</i> − ½) = <i>τ</i>/3 − 1/6, &nbsp;&nbsp; <i>c<sub>s</sub></i>² = 1/3 &nbsp; (lattice units, Δ<i>x</i> = Δ<i>t</i> = 1)</div>
+
+<h3>4. The D2Q9 lattice</h3>
+<p>Two dimensions, nine velocities: one rest particle, four axis-aligned neighbours and four diagonals.</p>
+<table>
+<tr><th><i>i</i></th><th>0</th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th><th>7</th><th>8</th></tr>
+<tr><td><b>c</b><sub><i>i</i></sub></td><td>(0,0)</td><td>(1,0)</td><td>(0,1)</td><td>(−1,0)</td><td>(0,−1)</td><td>(1,1)</td><td>(−1,1)</td><td>(−1,−1)</td><td>(1,−1)</td></tr>
+<tr><td><i>w<sub>i</sub></i></td><td>4/9</td><td>1/9</td><td>1/9</td><td>1/9</td><td>1/9</td><td>1/36</td><td>1/36</td><td>1/36</td><td>1/36</td></tr>
+</table>
+<p>The equilibrium is the second-order expansion of a Maxwell–Boltzmann distribution:</p>
+<div class="eq"><i>f<sub>i</sub></i><sup>eq</sup> = <i>w<sub>i</sub> ρ</i> [ 1 + (<b>c</b><sub><i>i</i></sub>·<b>u</b>)/<i>c<sub>s</sub></i>² + (<b>c</b><sub><i>i</i></sub>·<b>u</b>)²/(2<i>c<sub>s</sub></i>⁴) − <b>u</b>·<b>u</b>/(2<i>c<sub>s</sub></i>²) ]</div>
+<p>The weights make the lattice moments isotropic up to fourth order (Σ<i>w<sub>i</sub></i> = 1, Σ<i>w<sub>i</sub>c<sub>iα</sub>c<sub>iβ</sub></i> = <i>c<sub>s</sub></i>²<i>δ<sub>αβ</sub></i>), which is what makes the recovered stress tensor rotationally invariant. The Verification tab checks these identities numerically.</p>
+
+<h3>5. Collision and streaming</h3>
+<p><b>Collision</b> is local: each node relaxes its nine populations towards <i>f</i><sup>eq</sup> at rate 1/<i>τ</i>. It conserves mass and momentum exactly because <i>f</i><sup>eq</sup> has the same <i>ρ</i> and <i>ρ</i><b>u</b> as <i>f</i>. <b>Streaming</b> moves each post-collision population one link along its velocity. This code uses a fused "pull" step: each node gathers <i>f<sub>i</sub></i>(<b>x</b> − <b>c</b><sub><i>i</i></sub>), then collides, writing into a second array.</p>
+
+<h3>6. Boundary conditions</h3>
+<ul>
+<li><b>Cylinder: half-way bounce-back (no-slip).</b> A population that would stream into a solid node returns to its origin with reversed velocity, <i>f</i><sub>ī</sub>(<b>x</b><sub>f</sub>, <i>t</i>+1) = <i>f<sub>i</sub></i><sup>*</sup>(<b>x</b><sub>f</sub>, <i>t</i>). The effective wall sits half-way along each cut link, so the circle is represented as a staircase. This is accurate to second order for straight walls aligned with the grid and to first order for curved ones.</li>
+<li><b>Inlet (left): equilibrium velocity inlet.</b> <i>f<sub>i</sub></i> = <i>f<sub>i</sub></i><sup>eq</sup>(<i>ρ</i><sub>1</sub>, <i>U</i>, 0) with <i>ρ</i><sub>1</sub> taken from the first interior column.</li>
+<li><b>Outlet (right): zero-gradient outflow.</b> Populations are copied from the neighbouring column, with an optional absorbing layer of increased viscosity before it.</li>
+<li><b>Top and bottom: free-slip (specular reflection).</b> Zero normal velocity and zero shear stress, which models a symmetry plane rather than a wall.</li>
+</ul>
+
+<h3>7. Flow separation and wake formation</h3>
+<p>Along the front of the cylinder the flow accelerates and the pressure falls. Past the shoulders the pressure rises again (an adverse pressure gradient). The slow fluid in the boundary layer cannot climb this gradient: wall shear stress drops to zero, the boundary layer separates, and a region of reversed flow forms behind the body. At low Re this appears as two steady, counter-rotating vortices whose length <i>L<sub>r</sub></i> grows roughly linearly with Re.</p>
+
+<h3>8. Vortex shedding</h3>
+<p>Above a critical Re (≈ 47 for an unconfined cylinder) the symmetric wake becomes globally unstable (a Hopf bifurcation). Vortices then detach alternately from the upper and lower shoulders and form the Kármán vortex street. The dimensionless shedding frequency is the Strouhal number:</p>
+<div class="eq">St = <i>f D</i> / <i>U</i></div>
+<p>Shedding gives a lift force oscillating at frequency <i>f</i> and a drag force oscillating at 2<i>f</i>. In this app St is measured from upward zero crossings of <i>C<sub>L</sub></i>(<i>t</i>). The instability needs a disturbance to grow from. In a perfectly symmetric computation that disturbance would be round-off only and could take a very long time, so a small identical seed is applied at <i>t</i> = 0 (see Methodology §7). The seed does not impose a frequency or an amplitude.</p>
+
+<h3>9. Drag, lift and pressure coefficients</h3>
+<div class="eq"><i>C<sub>D</sub></i> = <i>F<sub>x</sub></i> / (½<i>ρ</i><sub>0</sub><i>U</i>²<i>D</i>), &nbsp;&nbsp; <i>C<sub>L</sub></i> = <i>F<sub>y</sub></i> / (½<i>ρ</i><sub>0</sub><i>U</i>²<i>D</i>), &nbsp;&nbsp; <i>C<sub>p</sub></i> = (<i>p</i> − <i>p</i><sub>∞</sub>) / (½<i>ρ</i><sub>0</sub><i>U</i>²) = <i>c<sub>s</sub></i>²(<i>ρ</i> − <i>ρ</i><sub>in</sub>) / (½<i>U</i>²)</div>
+<p>Forces are per unit span (2-D). They come from the <b>momentum-exchange method</b>: every link that crosses the wall transfers momentum 2<b>c</b><sub><i>i</i></sub><i>f<sub>i</sub></i><sup>*</sup> to the body,</p>
+<div class="eq"><b>F</b> = Σ<sub>boundary links</sub> 2 <b>c</b><sub><i>i</i></sub> <i>f<sub>i</sub></i><sup>*</sup>(<b>x</b><sub>f</sub>, <i>t</i>) &nbsp;&nbsp;(<b>c</b><sub><i>i</i></sub> pointing from fluid node <b>x</b><sub>f</sub> into the solid)</div>
+<p>This captures both pressure drag and viscous (friction) drag without integrating stresses on the surface. For <i>C<sub>p</sub></i> the reference pressure <i>p</i><sub>∞</sub> = <i>c<sub>s</sub></i>²<i>ρ</i><sub>in</sub> is the mean pressure on the inlet plane. The inlet is only 4<i>D</i> upstream, so this is slightly above the true free-stream pressure; on a confined domain there is also a streamwise pressure drop, so the outlet sits below the inlet level.</p>
+<p><b>Vorticity</b>, plotted as <i>ωD/U</i>, is computed with central differences: <i>ω</i> = ∂<i>v</i>/∂<i>x</i> − ∂<i>u</i>/∂<i>y</i>. Positive (red) means anticlockwise rotation.</p>
+
+<h3>10. Assumptions of the model</h3>
+<ul>
+<li>Two-dimensional, isothermal, single-phase Newtonian fluid.</li>
+<li>Weakly compressible: density varies by about 1–3 % here. Pressure follows the ideal-gas-like law <i>p</i> = <i>c<sub>s</sub></i>²<i>ρ</i>. Incompressible behaviour is recovered only as Ma → 0.</li>
+<li>Low-Mach, low-Knudsen regime; BGK collision with a single relaxation time (Prandtl-number and bulk-viscosity effects fixed).</li>
+<li>Laminar: no turbulence model.</li>
+</ul>
+</div>
+
+<!-- ------------------------------ ABOUT & METHODOLOGY ------------------------------ -->
+<div class="doc" data-p="about">
+<h2>CylinderFlow: Interactive 2D CFD Simulator Using the Lattice Boltzmann Method</h2>
+<p style="color:var(--muted)">Project documentation, written into the application.</p>
+
+<h3>1. Abstract</h3>
+<p>CylinderFlow is a self-contained, browser-based numerical simulator of two-dimensional viscous flow past a circular cylinder. A D2Q9 lattice Boltzmann solver with BGK collision, half-way bounce-back walls and a momentum-exchange force evaluation runs in real time in vanilla JavaScript. Users can vary the Reynolds number, inlet velocity, cylinder resolution and grid size. Velocity, vorticity, pressure and streamline fields are visualised live, while drag and lift coefficients, Strouhal number and recirculation length are measured from the evolving solution. A built-in verification suite checks the lattice, equilibrium, collision, streaming, boundary conditions and force evaluation against analytical results. The simulator reproduces the qualitative sequence of regimes: a steady separated wake at Re = 20 and 40, periodic vortex shedding at Re = 100 and 180. Quantitative values carry identifiable biases from domain confinement, staircase geometry and resolution, and these are documented below.</p>
+
+<h3>2. Problem statement</h3>
+<p>Flow past a circular cylinder is the canonical bluff-body problem. It packs boundary-layer separation, recirculation, a global wake instability and periodic vortex shedding into a single, simple geometry. Studying it normally requires a CFD package, meshing and a licence. The question addressed here is whether a compact, transparent numerical method can show these phenomena interactively, without installing software, while staying honest about accuracy.</p>
+
+<h3>3. Research objective</h3>
+<ol>
+<li>Implement a correct D2Q9 BGK lattice Boltzmann solver for an external flow with an immersed circular obstacle.</li>
+<li>Verify each numerical component against analytical results before using it.</li>
+<li>Measure drag, lift, Strouhal number and recirculation length from the simulation, and observe how they change with Reynolds number.</li>
+<li>Identify the main sources of error (domain confinement, geometric resolution, compressibility, boundary treatment) and quantify some of them.</li>
+</ol>
+
+<h3>4. Governing equations</h3>
+<p>Incompressible Navier–Stokes (Theory §2), approximated by the lattice Boltzmann BGK equation (Theory §3), with</p>
+<div class="eq"><i>ν</i> = (<i>τ</i> − ½)/3, &nbsp;&nbsp; Re = <i>U D</i>/<i>ν</i> &nbsp; ⇒ &nbsp; <i>τ</i> = 3<i>U D</i>/Re + ½</div>
+<p><i>D</i> is the nominal diameter of the discretised circle, in cells.</p>
+
+<h3>5. Numerical methodology</h3>
+<ul>
+<li><b>Domain:</b> rectangular, <i>n<sub>x</sub></i> × <i>n<sub>y</sub></i> lattice nodes with aspect ratio 2.5 : 1. Cylinder centre at <i>x</i> = <i>n<sub>x</sub></i>/5 and mid-height, <i>y</i> = (<i>n<sub>y</sub></i> − 1)/2. Standard grid: 400 × 160, <i>D</i> = 20, giving 4<i>D</i> upstream, 16<i>D</i> downstream and a blockage ratio <i>D</i>/<i>H</i> = 12.5 %.</li>
+<li><b>Initial condition:</b> uniform flow <i>u</i> = <i>U</i>, <i>ρ</i> = 1 (impulsive start), zero velocity inside the solid, plus the optional seed (§7).</li>
+<li><b>Time stepping:</b> fused pull-streaming + BGK collision in double precision, with two distribution arrays swapped each step. Nodes away from boundaries use a branch-free path. Forces are accumulated during streaming.</li>
+<li><b>Sampling:</b> <i>C<sub>D</sub></i>, <i>C<sub>L</sub></i>, ⟨<i>u</i>⟩ and max|<i>u</i>| are recorded every 0.05 convective time units (t* = <i>tU</i>/<i>D</i>).</li>
+<li><b>Statistics:</b> computed over the window t* ∈ [max(t*<sub>end</sub>/2, t*<sub>end</sub> − 40), t*<sub>end</sub>], which excludes the start-up transient. Mean and rms of <i>C<sub>D</sub></i>; mean, half peak-to-peak amplitude and rms of <i>C<sub>L</sub></i>. The period is the mean spacing of upward zero crossings of <i>C<sub>L</sub></i> − mean(<i>C<sub>L</sub></i>), located by linear interpolation; St = 1/period(t*).</li>
+<li><b>Wake classification</b> (shown as "Wake state"): <i>shedding</i> if <i>C<sub>L</sub></i> amplitude > 0.02, at least 3 complete cycles and period coefficient of variation < 10 %; <i>steady</i> if <i>C<sub>L</sub></i> amplitude < 0.01 and rms(<i>C<sub>D</sub></i>) < 0.5 % of its mean; otherwise <i>transitional</i>; <i>developing</i> before t* = 15. These thresholds are heuristics, chosen and stated here; they are not physical constants.</li>
+<li><b>Recirculation length</b> <i>L<sub>r</sub></i>: distance from the rear of the cylinder (<i>x<sub>c</sub></i> + <i>D</i>/2) to the point on the centreline where <i>u</i> changes sign from negative to positive, linearly interpolated. It is reported only for steady wakes, because for shedding wakes a time-averaged field would be needed.</li>
+</ul>
+
+<h3>6. LBM formulation</h3>
+<p>D2Q9 velocities and weights, second-order equilibrium, BGK collision (Theory §3–5). The collision is written per node in expanded form:</p>
+<div class="eq"><i>f<sub>i</sub></i><sup>*</sup> = <i>f<sub>i</sub></i> + <i>ω</i> (<i>f<sub>i</sub></i><sup>eq</sup> − <i>f<sub>i</sub></i>), &nbsp; <i>ω</i> = 1/<i>τ</i></div>
+<p>With the absorbing layer on, <i>ω</i> depends on the column. Over the last 15 % of <i>n<sub>x</sub></i>, <i>τ</i> rises quadratically from its physical value to max(<i>τ</i>, 1.0). The cylinder's near wake (up to about 12<i>D</i> downstream on the standard grid) is not inside this layer.</p>
+
+<h3>7. Boundary conditions</h3>
+<p>Detailed in Theory §6: half-way bounce-back on the cylinder, equilibrium velocity inlet, zero-gradient outlet and free-slip lateral boundaries.</p>
+<p><b>Symmetry-breaking seed.</b> The discrete problem is mirror-symmetric, so in exact arithmetic the symmetric wake would persist even above the critical Re. To let the physical instability develop in reasonable time, a single divergence-free Gaussian vortex is added to the initial velocity field. It sits 1.5<i>D</i> behind the cylinder centre, with core radius 0.5<i>D</i> and peak velocity 0.1<i>U</i>. The same seed is used at every Re and it can be switched off. It is a one-off initial perturbation, not a forcing: where the steady wake is stable (Re = 20, 40) it decays and the lift returns to zero, which you can watch in the <i>C<sub>L</sub></i> chart. A divergence-free vortex was chosen over a plain transverse velocity patch, because during development the latter excited a lightly damped transverse acoustic mode (St ≈ 0.44, tied to the domain height) that could be mistaken for shedding.</p>
+
+<h3>8. Numerical stability considerations</h3>
+<ul>
+<li><b>Relaxation time.</b> BGK becomes unstable as <i>τ</i> → ½ (vanishing viscosity) because the high-order non-hydrodynamic moments are under-damped. The app refuses <i>τ</i> < 0.505 and warns below 0.52. To reach high Re safely, increase <i>D</i> (resolution) rather than <i>U</i>.</li>
+<li><b>Mach number.</b> <i>U</i> ≤ 0.15 is enforced (Ma ≤ 0.26 at the inlet; local maxima near the shoulders are about 1.5<i>U</i>). Compressibility errors scale with Ma².</li>
+<li><b>Resolution.</b> At least ~16 cells per diameter are advised for forces; coarser grids are allowed with a warning.</li>
+<li><b>Run-time monitoring.</b> Every step the solver checks that total density and forces are finite, density stays within (0.3, 3) and max|<i>u</i>| < 0.45. If any check fails the run stops and the reason is shown. No further results are produced, and observations cannot be saved from an unstable run.</li>
+<li><b>Responsiveness.</b> The solver runs on the main thread in batches limited to ~14 ms per animation frame, so the page never blocks.</li>
+</ul>
+
+<h3>9. Results interpretation</h3>
+<p>The table below was produced during development by running the <b>same solver code</b> headlessly (Node.js) with the preset parameters (U = 0.08, seed and absorbing layer on). You can reproduce every row by running the corresponding preset in the app until the same t* and comparing the metrics panel; small differences can occur if the run length differs.</p>
+<table><tr><th>Re</th><th>Grid</th><th>D (cells)</th><th>τ</th><th>run length t*</th><th>mean C<sub>D</sub></th><th>C<sub>L</sub> amplitude</th><th>St</th><th>L<sub>r</sub>/D</th><th>wake state</th></tr><tr><td>20</td><td>400×160</td><td>20</td><td>0.74</td><td>80</td><td>2.659</td><td>0.0004</td><td>—</td><td>1.011</td><td>steady</td></tr><tr><td>40</td><td>400×160</td><td>20</td><td>0.62</td><td>80</td><td>1.984</td><td>0.0040</td><td>—</td><td>2.328</td><td>steady</td></tr><tr><td>100</td><td>400×160</td><td>20</td><td>0.548</td><td>100</td><td>1.671</td><td>0.4272</td><td>0.1825</td><td>—</td><td>shedding</td></tr><tr><td>180</td><td>400×160</td><td>20</td><td>0.5267</td><td>100</td><td>1.660</td><td>0.9205</td><td>0.2056</td><td>—</td><td>shedding</td></tr><tr><td>100</td><td>300×120</td><td>15</td><td>0.536</td><td>100</td><td>1.686</td><td>0.4267</td><td>0.1805</td><td>—</td><td>shedding</td></tr><tr><td>100</td><td>600×240</td><td>30</td><td>0.572</td><td>100</td><td>1.618</td><td>0.4458</td><td>0.1841</td><td>—</td><td>shedding</td></tr></table><p style="color:var(--dim);font-size:12px">Statistics window: t* ∈ [max(t*<sub>end</sub>/2, t*<sub>end</sub> − 40), t*<sub>end</sub>]. Blockage 12.5 % in all rows. L<sub>r</sub> is reported for steady wakes only.</p>
+<p>Interpretation:</p>
+<ul>
+<li><b>Regimes are reproduced.</b> Re = 20 and 40 settle to steady symmetric wakes and the seed decays. Re = 100 and 180 develop self-sustained periodic shedding with St rising with Re, as expected.</li>
+<li><b>Recirculation lengths are close to published unconfined values</b> (Dennis &amp; Chang, 1970: <i>L<sub>r</sub></i>/<i>D</i> ≈ 0.94 at Re = 20 and ≈ 2.35 at Re = 40), showing that the near-wake topology is resolved.</li>
+<li><b>Drag coefficients are systematically higher than unconfined benchmarks</b> (Dennis &amp; Chang: <i>C<sub>D</sub></i> ≈ 2.05 at Re = 20, 1.52 at Re = 40; Park, Kwon &amp; Choi, 1998: mean <i>C<sub>D</sub></i> ≈ 1.33, <i>C<sub>L</sub></i> amplitude ≈ 0.33, St ≈ 0.165 at Re = 100). The main cause identified is domain confinement. With 12.5 % blockage and only 4<i>D</i> of upstream length, the flow around the cylinder is accelerated and the viscous disturbance (which decays slowly at low Re) is constrained. In a development run at Re = 20 on an 800 × 480 grid (blockage 4.2 %, 10<i>D</i> upstream), <i>C<sub>D</sub></i> fell from 2.66 to 2.20 at the same <i>D</i> = 20. Blockage also raises St. The remaining gap is attributable to the staircase geometry (effective diameter slightly larger than nominal), finite resolution and compressibility.</li>
+<li><b>Grid dependence</b> at Re = 100 (blockage kept at 12.5 %) is shown by the last rows: refining from <i>D</i> = 15 to <i>D</i> = 30 changes mean <i>C<sub>D</sub></i> by a few per cent. The confinement bias is larger than the discretisation error, so a convincing benchmark comparison needs a larger domain, not only a finer grid.</li>
+</ul>
+<p class="caution">No experimental validation was performed. The published values quoted above are for <i>unconfined</i> flow and serve only as context for the size and direction of the biases. They are not a validation of this code.</p>
+
+<h3>10. Limitations</h3>
+<ul>
+<li>Two-dimensional and laminar. Real cylinder wakes become three-dimensional near Re ≈ 190, so results above that are a 2-D model only.</li>
+<li>Staircase (voxelised) cylinder with first-order accurate curved-wall bounce-back. Surface quantities such as <i>C<sub>p</sub></i>(θ) are sampled at the first fluid nodes and look jagged at low resolution.</li>
+<li>Strong confinement (default 12.5 % blockage, free-slip side walls, inlet 4<i>D</i> upstream). This biases <i>C<sub>D</sub></i> and St upwards.</li>
+<li>Simple equilibrium inlet and zero-gradient outlet. These reflect acoustic waves; the absorbing layer reduces but does not remove this. In a development run with a taller domain (400 × 320, blockage 6 %) at Re = 100, the shedding was irregular. The fixed 2.5 : 1 grid presets were kept partly for this reason.</li>
+<li>Weakly compressible (Ma up to ≈ 0.2 locally), so pressure contains small acoustic fluctuations.</li>
+<li>BGK collision limits the reachable Re for a given resolution. Momentum-exchange forces on a staircase body carry small high-frequency fluctuations, and at coarse resolution the effective diameter differs from the nominal one by up to about one cell.</li>
+<li>Single-threaded JavaScript, so grid sizes are kept modest (≈ 25–35 million lattice-node updates per second measured in Node.js during development; browser speed varies by machine).</li>
+</ul>
+
+<h3>11. Future improvements</h3>
+<ul>
+<li>Interpolated (curved) bounce-back, e.g. Bouzidi–Firdaouss–Lallemand, for second-order wall accuracy and smoother surface data.</li>
+<li>Zou–He velocity/pressure boundaries or characteristic non-reflecting outflow conditions; larger domains to reduce blockage below 5 %.</li>
+<li>MRT or regularised/cumulant collision operators for stability at lower <i>τ</i>.</li>
+<li>Running averages of the flow field for time-averaged <i>L<sub>r</sub></i>, <i>C<sub>p</sub></i>(θ) and separation angle in shedding regimes.</li>
+<li>Systematic grid-convergence study with Richardson extrapolation, and comparison against an independent solver.</li>
+<li>Web Worker or WebGPU implementation for larger grids.</li>
+</ul>
+
+<h3>12. References</h3>
+<ol class="refs">
+<li>Bhatnagar, P. L., Gross, E. P., &amp; Krook, M. (1954). A model for collision processes in gases. I. Small amplitude processes in charged and neutral one-component systems. <i>Physical Review</i>, 94(3), 511–525.</li>
+<li>Qian, Y. H., d'Humières, D., &amp; Lallemand, P. (1992). Lattice BGK models for Navier–Stokes equation. <i>Europhysics Letters</i>, 17(6), 479–484.</li>
+<li>Chen, S., &amp; Doolen, G. D. (1998). Lattice Boltzmann method for fluid flows. <i>Annual Review of Fluid Mechanics</i>, 30, 329–364.</li>
+<li>Krüger, T., Kusumaatmaja, H., Kuzmin, A., Shardt, O., Silva, G., &amp; Viggen, E. M. (2017). <i>The Lattice Boltzmann Method: Principles and Practice</i>. Springer.</li>
+<li>Ladd, A. J. C. (1994). Numerical simulations of particulate suspensions via a discretized Boltzmann equation. Part 1. Theoretical foundation. <i>Journal of Fluid Mechanics</i>, 271, 285–309.</li>
+<li>Mei, R., Yu, D., Shyy, W., &amp; Luo, L.-S. (2002). Force evaluation in the lattice Boltzmann method involving curved geometry. <i>Physical Review E</i>, 65, 041203.</li>
+<li>Zou, Q., &amp; He, X. (1997). On pressure and velocity boundary conditions for the lattice Boltzmann BGK model. <i>Physics of Fluids</i>, 9(6), 1591–1598.</li>
+<li>Dennis, S. C. R., &amp; Chang, G.-Z. (1970). Numerical solutions for steady flow past a circular cylinder at Reynolds numbers up to 100. <i>Journal of Fluid Mechanics</i>, 42(3), 471–489.</li>
+<li>Park, J., Kwon, K., &amp; Choi, H. (1998). Numerical solutions of flow past a circular cylinder at Reynolds numbers up to 160. <i>KSME International Journal</i>, 12(6), 1200–1205.</li>
+<li>Williamson, C. H. K. (1996). Vortex dynamics in the cylinder wake. <i>Annual Review of Fluid Mechanics</i>, 28, 477–539.</li>
+</ol>
+</div>
+
+<!-- ------------------------------ VERIFICATION ------------------------------ -->
+<div class="doc" data-p="verify">
+<h2>Solver verification</h2>
+<p>These checks run the <b>same solver object</b> the simulator uses, on small test problems with known analytical answers. Pass/fail is computed from the numbers shown; nothing is hard-coded. A full run takes a few seconds and does not touch the current simulation.</p>
+<button class="btn primary" id="btnVerify">▶ Run verification suite</button>
+<span id="verifySummary" style="margin-left:10px"></span>
+<div id="verifyOut" style="margin-top:12px"></div>
+<h3>What each group checks</h3>
+<ul>
+<li><b>Lattice</b>: D2Q9 velocities, weights and isotropy identities; opposite and mirror tables used by the boundaries.</li>
+<li><b>Equilibrium</b>: zeroth, first and second moments of <i>f</i><sup>eq</sup> equal <i>ρ</i>, <i>ρ</i><b>u</b> and <i>ρ</i><b>uu</b> + <i>ρc<sub>s</sub></i>²<b>I</b> for 200 random states.</li>
+<li><b>Streaming</b>: marked populations move exactly one link; periodic wrap-around works.</li>
+<li><b>Collision</b>: global mass and momentum are conserved from a random non-equilibrium state.</li>
+<li><b>Viscosity</b>: a decaying sinusoidal shear wave, whose amplitude analytically falls as exp(−<i>νk</i>²<i>t</i>), gives the measured viscosity. It is compared with <i>ν</i> = (<i>τ</i> − ½)/3 at three <i>τ</i>.</li>
+<li><b>Boundaries</b>: body-force-driven Poiseuille flow between bounce-back walls is compared with the analytical parabola (walls half-way between nodes). A closed box with an obstacle conserves mass. An empty channel keeps uniform flow under the inlet/outlet/free-slip conditions. Velocity inside the cylinder stays zero.</li>
+<li><b>Forces</b>: in a periodic domain the momentum-exchange force must equal, step by step, the momentum lost by the fluid. A symmetric set-up without seed gives zero lift.</li>
+<li><b>Stability</b>: a deliberately divergent configuration is detected and stopped.</li>
+</ul>
+<h3>Application checks performed during development</h3>
+<p>Besides the suite above, the finished file was opened offline in headless Google Chrome (no network) and exercised automatically: every button, slider and preset; reset; saving and comparing cases; all export formats; full screen; and the browser console was checked for errors. The results are recorded in the development notes that accompany this file, not repeated here.</p>
+</div>
+
+<!-- ------------------------------ HELP ------------------------------ -->
+<div class="doc" data-p="help">
+<h2>How to use</h2>
+<ol>
+<li>Pick a <b>preset</b> (it applies and starts immediately), or set parameters and press <b>Apply parameters &amp; reset</b>.</li>
+<li>Watch the field. Switch between velocity, vorticity, pressure and streamlines; tracer particles and streamline overlays work in any mode. Hover over the field to probe local values.</li>
+<li>Let the run reach a statistically settled state: steady cases need roughly 30–50 t*, shedding cases about 60–100 t*. The <b>Wake state</b> indicator and the shaded window on the charts show what the statistics are based on.</li>
+<li>Press <b>Save observation</b>, run another Re, and compare in the table and the <i>C<sub>D</sub></i>–Re chart.</li>
+<li>Export the time series (CSV), everything including saved cases (JSON), the current field (CSV) or an image (PNG).</li>
+</ol>
+<h3>Keyboard</h3>
+<p><span class="kbd">Space</span> start/pause · <span class="kbd">R</span> reset · <span class="kbd">F</span> full screen · <span class="kbd">Esc</span> close panels</p>
+<h3>Units</h3>
+<p>The solver works in lattice units (Δ<i>x</i> = Δ<i>t</i> = 1, <i>ρ</i><sub>0</sub> = 1). Displayed fields are dimensionless: |<b>u</b>|/<i>U</i>, <i>ωD</i>/<i>U</i>, <i>C<sub>p</sub></i>. Time is t* = <i>tU</i>/<i>D</i>. Coordinates in the probe are in diameters from the cylinder centre. The physical-unit panel converts by Reynolds similarity: <i>U</i><sub>phys</sub> = Re <i>ν</i><sub>phys</sub>/<i>D</i><sub>phys</sub>, Δ<i>x</i> = <i>D</i><sub>phys</sub>/<i>D</i>, Δ<i>t</i> = (<i>U</i>/<i>U</i><sub>phys</sub>) Δ<i>x</i>.</p>
+<h3>If the simulation stops as unstable</h3>
+<p>Increase <i>D</i> (more cells per diameter), lower <i>U</i>, or lower Re, each of which raises <i>τ</i> = 3<i>UD</i>/Re + ½. The banner reports which check failed and when.</p>
+</div>
+
+    </div>
+  </div>
+</div>
+<div id="lightbox"><img alt="wake snapshot"><div></div></div>
+
+<script>
+/* ==========================================================================
+   CylinderFlow — D2Q9 lattice Boltzmann solver (BGK collision)
+   Pure numerical code: no DOM access, so the same source is unit-tested
+   headlessly and inlined into index.html.
+   Lattice units throughout: dx = dt = 1, reference density rho0 = 1.
+   ========================================================================== */
+const LBM = (function () {
+  'use strict';
+  // D2Q9 velocity set. Index: 0 rest, 1 E, 2 N, 3 W, 4 S, 5 NE, 6 NW, 7 SW, 8 SE
+  const Q = 9;
+  const CX = [0, 1, 0, -1, 0, 1, -1, -1, 1];
+  const CY = [0, 0, 1, 0, -1, 1, 1, -1, -1];
+  const W = [4 / 9, 1 / 9, 1 / 9, 1 / 9, 1 / 9, 1 / 36, 1 / 36, 1 / 36, 1 / 36];
+  const OPP = [0, 3, 4, 1, 2, 7, 8, 5, 6];     // c_opp = -c
+  const MIRY = [0, 1, 4, 3, 2, 8, 7, 6, 5];    // reflect c_y -> -c_y (free-slip wall)
+  const CS2 = 1 / 3;                           // lattice speed of sound squared
+
+  /** Equilibrium distribution, 2nd-order Hermite expansion. */
+  function feq(i, rho, ux, uy) {
+    const cu = CX[i] * ux + CY[i] * uy;
+    const usq = ux * ux + uy * uy;
+    return W[i] * rho * (1 + 3 * cu + 4.5 * cu * cu - 1.5 * usq);
+  }
+
+  /** nu = cs^2 (tau - 1/2) = tau/3 - 1/6 */
+  const viscosityFromTau = (tau) => CS2 * (tau - 0.5);
+  const tauFromViscosity = (nu) => nu / CS2 + 0.5;
+
+  class Solver {
+    /**
+     * cfg: nx, ny, tau, U (inlet velocity, lattice), D (cylinder diameter, cells),
+     *      cxc, cyc (cylinder centre), xBC: 'inout' | 'periodic',
+     *      yBC: 'freeslip' | 'periodic', gx, gy (body acceleration, tests only),
+     *      obstacle: 'cylinder' | 'none', solidFn(x,y) (optional extra solids),
+     *      perturb (fractional transverse velocity seed, default 0)
+     */
+    constructor(cfg) {
+      this.cfg = Object.assign({
+        xBC: 'inout', yBC: 'freeslip', gx: 0, gy: 0, obstacle: 'cylinder', perturb: 0,
+        sponge: 0, spongeTau: 1.0
+      }, cfg);
+      const c = this.cfg;
+      this.nx = c.nx | 0; this.ny = c.ny | 0; this.N = this.nx * this.ny;
+      this.tau = c.tau; this.omega = 1 / c.tau; this.nu = viscosityFromTau(c.tau);
+      this.U = c.U; this.D = c.D;
+      this.cxc = c.cxc !== undefined ? c.cxc : this.nx / 5;
+      this.cyc = c.cyc !== undefined ? c.cyc : (this.ny - 1) / 2;
+      const N = this.N;
+      this.f = new Float64Array(Q * N);
+      this.fn = new Float64Array(Q * N);
+      this.rho = new Float64Array(N);
+      this.ux = new Float64Array(N);
+      this.uy = new Float64Array(N);
+      this.solid = new Uint8Array(N);
+      this.slow = new Uint8Array(N);   // node needs the boundary-aware gather path
+      // per-column relaxation frequency: uniform, except an optional absorbing
+      // ("sponge") layer next to the outlet where viscosity rises smoothly to damp
+      // acoustic waves reflected by the simple outflow condition
+      this.omegaX = new Float64Array(this.nx).fill(this.omega);
+      if (c.xBC === 'inout' && c.sponge > 0) {
+        const xs = Math.floor(this.nx * (1 - c.sponge)), tS = Math.max(c.spongeTau, c.tau);
+        for (let x = xs; x < this.nx; x++) {
+          const s = (x - xs) / (this.nx - 1 - xs);
+          this.omegaX[x] = 1 / (c.tau + (tS - c.tau) * s * s);
+        }
+        this.spongeStart = xs;
+      } else this.spongeStart = this.nx;
+      this.t = 0;
+      this.Fx = 0; this.Fy = 0;        // force ON the obstacle (momentum exchange), last step
+      this.mass = 0; this.meanUx = 0; this.maxU = 0; this.minRho = 1; this.maxRho = 1;
+      this.nFluid = 0;
+      this.rhoIn = 1;                  // mean density on the first interior column (pressure reference)
+      this.status = 'ok'; this.statusMsg = '';
+      this.buildGeometry();
+      this.initialise();
+    }
+
+    buildGeometry() {
+      const { nx, ny, solid } = this, c = this.cfg;
+      const R = this.D / 2;
+      let nf = 0;
+      for (let y = 0; y < ny; y++) for (let x = 0; x < nx; x++) {
+        const idx = y * nx + x;
+        let s = 0;
+        if (c.obstacle === 'cylinder') {
+          const dx = x - this.cxc, dy = y - this.cyc;
+          if (dx * dx + dy * dy <= R * R) s = 1;
+        }
+        if (c.solidFn && c.solidFn(x, y)) s = 1;
+        solid[idx] = s;
+        if (!s) nf++;
+      }
+      this.nFluid = nf;
+      // nodes whose neighbours are solid or outside the domain use the slow path
+      for (let y = 0; y < ny; y++) for (let x = 0; x < nx; x++) {
+        const idx = y * nx + x;
+        let s = (x === 0 || x === nx - 1 || y === 0 || y === ny - 1) ? 1 : 0;
+        if (!s) for (let i = 1; i < Q; i++) if (solid[idx - CX[i] - CY[i] * nx]) { s = 1; break; }
+        this.slow[idx] = s;
+      }
+      // boundary links (for Cp around the cylinder surface)
+      this.surface = [];
+      for (let y = 1; y < ny - 1; y++) for (let x = 1; x < nx - 1; x++) {
+        const idx = y * nx + x;
+        if (solid[idx]) continue;
+        for (let i = 1; i < Q; i++) if (solid[idx + CX[i] + CY[i] * nx]) {
+          this.surface.push(idx); break;
+        }
+      }
+    }
+
+    initialise() {
+      const { N, nx, f, solid, rho, ux, uy } = this;
+      const c = this.cfg, U0 = c.xBC === 'inout' ? this.U : (c.U0 || 0);
+      for (let idx = 0; idx < N; idx++) {
+        const x = idx % nx;
+        let u = solid[idx] ? 0 : U0, v = 0;
+        // optional symmetry-breaking seed: one weak, divergence-free Gaussian
+        // vortex 1.5 D behind the cylinder (identical for every Re). Peak swirl
+        // velocity = perturb * U. It decays where the steady wake is stable and
+        // triggers the natural instability where it is not.
+        if (!solid[idx] && c.perturb) {
+          const y = (idx / nx) | 0, r0 = 0.5 * this.D;
+          const dx = x - (this.cxc + 1.5 * this.D), dy = y - this.cyc;
+          const e = Math.exp(-(dx * dx + dy * dy) / (r0 * r0));
+          const G = c.perturb * this.U * Math.sqrt(2 * Math.E) / r0;    // so that max |u'| = perturb*U
+          u += -G * dy * e; v = G * dx * e;
+        }
+        if (c.initFn) { const r = c.initFn(x, (idx / nx) | 0); u = r[0]; v = r[1]; }
+        rho[idx] = 1; ux[idx] = u; uy[idx] = v;
+        for (let i = 0; i < Q; i++) f[i * N + idx] = feq(i, 1, u, v);
+      }
+      this.t = 0; this.status = 'ok'; this.statusMsg = '';
+      this.Fx = this.Fy = 0;
+      this.computeMass();
+    }
+
+    computeMass() {
+      const { N, f, solid } = this; let m = 0;
+      for (let idx = 0; idx < N; idx++) if (!solid[idx]) for (let i = 0; i < Q; i++) m += f[i * N + idx];
+      this.mass = m; return m;
+    }
+
+    /** One time step: pull-streaming + boundary conditions + BGK collision (fused). */
+    step() {
+      if (this.status !== 'ok') return false;
+      const { nx, ny, N, f, fn, rho: R, ux: UX, uy: UY, solid, slow } = this;
+      const omX = this.omegaX, c = this.cfg;
+      const gxs = this.tau * c.gx, gys = this.tau * c.gy;        // velocity-shift forcing
+      const inout = c.xBC === 'inout', yper = c.yBC === 'periodic';
+      const x0 = inout ? 1 : 0, x1 = inout ? nx - 2 : nx - 1;
+      const N1 = N, N2 = 2 * N, N3 = 3 * N, N4 = 4 * N, N5 = 5 * N, N6 = 6 * N, N7 = 7 * N, N8 = 8 * N;
+      let Fx = 0, Fy = 0, sumRho = 0, sumUx = 0, maxU2 = 0, minR = 1e9, maxR = -1e9;
+      const g = [0, 0, 0, 0, 0, 0, 0, 0, 0];
+
+      for (let y = 0; y < ny; y++) {
+        for (let x = x0; x <= x1; x++) {
+          const idx = y * nx + x;
+          if (solid[idx]) continue;
+          let f0, f1, f2, f3, f4, f5, f6, f7, f8;
+          if (!slow[idx]) {
+            // interior: f_i(x) <- f*_i(x - c_i)
+            f0 = f[idx];
+            f1 = f[N1 + idx - 1];
+            f2 = f[N2 + idx - nx];
+            f3 = f[N3 + idx + 1];
+            f4 = f[N4 + idx + nx];
+            f5 = f[N5 + idx - nx - 1];
+            f6 = f[N6 + idx - nx + 1];
+            f7 = f[N7 + idx + nx + 1];
+            f8 = f[N8 + idx + nx - 1];
+          } else {
+            g[0] = f[idx];
+            for (let i = 1; i < Q; i++) {
+              let sx = x - CX[i], sy = y - CY[i];
+              if (sx < 0 || sx >= nx) sx = (sx + nx) % nx;          // periodic in x (inout never reaches here)
+              if (sy < 0 || sy >= ny) {
+                if (yper) sy = (sy + ny) % ny;
+                else {                                              // free-slip: specular reflection
+                  const j = MIRY[i];
+                  const sidx = y * nx + sx;
+                  g[i] = solid[sidx] ? f[OPP[i] * N + idx] : f[j * N + sidx];
+                  continue;
+                }
+              }
+              const sidx = sy * nx + sx;
+              if (solid[sidx]) {
+                // half-way bounce-back; population that left x towards the wall returns reversed
+                const v = f[OPP[i] * N + idx];
+                g[i] = v;
+                // momentum exchange: 2 c_opp f*_opp  (force on the solid)
+                Fx += 2 * CX[OPP[i]] * v; Fy += 2 * CY[OPP[i]] * v;
+              } else g[i] = f[i * N + sidx];
+            }
+            f0 = g[0]; f1 = g[1]; f2 = g[2]; f3 = g[3]; f4 = g[4]; f5 = g[5]; f6 = g[6]; f7 = g[7]; f8 = g[8];
+          }
+          // macroscopic moments
+          const rho = f0 + f1 + f2 + f3 + f4 + f5 + f6 + f7 + f8;
+          const ir = 1 / rho;
+          const ux = (f1 - f3 + f5 - f6 - f7 + f8) * ir;
+          const uy = (f2 - f4 + f5 + f6 - f7 - f8) * ir;
+          // BGK collision towards equilibrium
+          const om = omX[x];
+          const ue = ux + gxs, ve = uy + gys;
+          const usq = 1.5 * (ue * ue + ve * ve);
+          const r9 = rho / 9, r36 = rho / 36;
+          const cu1 = 3 * ue, cu2 = 3 * ve, cu5 = 3 * (ue + ve), cu6 = 3 * (ve - ue);
+          fn[idx] = f0 + om * (4 * r9 * (1 - usq) - f0);
+          fn[N1 + idx] = f1 + om * (r9 * (1 + cu1 + 0.5 * cu1 * cu1 - usq) - f1);
+          fn[N2 + idx] = f2 + om * (r9 * (1 + cu2 + 0.5 * cu2 * cu2 - usq) - f2);
+          fn[N3 + idx] = f3 + om * (r9 * (1 - cu1 + 0.5 * cu1 * cu1 - usq) - f3);
+          fn[N4 + idx] = f4 + om * (r9 * (1 - cu2 + 0.5 * cu2 * cu2 - usq) - f4);
+          fn[N5 + idx] = f5 + om * (r36 * (1 + cu5 + 0.5 * cu5 * cu5 - usq) - f5);
+          fn[N6 + idx] = f6 + om * (r36 * (1 + cu6 + 0.5 * cu6 * cu6 - usq) - f6);
+          fn[N7 + idx] = f7 + om * (r36 * (1 - cu5 + 0.5 * cu5 * cu5 - usq) - f7);
+          fn[N8 + idx] = f8 + om * (r36 * (1 - cu6 + 0.5 * cu6 * cu6 - usq) - f8);
+          // physical velocity with forcing = u + g/2 (zero for the cylinder runs)
+          const uxp = ux + 0.5 * c.gx, uyp = uy + 0.5 * c.gy;
+          R[idx] = rho; UX[idx] = uxp; UY[idx] = uyp;
+          sumRho += rho; sumUx += uxp;
+          const u2 = uxp * uxp + uyp * uyp;
+          if (u2 > maxU2) maxU2 = u2;
+          if (rho < minR) minR = rho;
+          if (rho > maxR) maxR = rho;
+        }
+      }
+
+      if (inout) {
+        // inlet (x = 0): equilibrium with prescribed velocity, density from neighbour
+        const U = this.U;
+        let sr = 0, nr = 0;
+        for (let y = 0; y < ny; y++) {
+          const idx = y * nx;
+          if (solid[idx]) continue;
+          const r = solid[idx + 1] ? 1 : R[idx + 1];
+          sr += r; nr++;
+          for (let i = 0; i < Q; i++) fn[i * N + idx] = feq(i, r, U, 0);
+          R[idx] = r; UX[idx] = U; UY[idx] = 0;
+        }
+        if (nr) this.rhoIn = sr / nr;
+        // outlet (x = nx-1): zero-gradient (copy of the upstream column)
+        for (let y = 0; y < ny; y++) {
+          const idx = y * nx + nx - 1;
+          for (let i = 0; i < Q; i++) fn[i * N + idx] = fn[i * N + idx - 1];
+          R[idx] = R[idx - 1]; UX[idx] = UX[idx - 1]; UY[idx] = UY[idx - 1];
+        }
+      }
+
+      this.f = fn; this.fn = f;
+      this.t++;
+      this.Fx = Fx; this.Fy = Fy;
+      const nInt = this.nFluid - (inout ? 2 * ny : 0);
+      this.meanRho = sumRho / nInt;
+      this.meanUx = sumUx / nInt;
+      this.maxU = Math.sqrt(maxU2);
+      this.minRho = minR; this.maxRho = maxR;
+
+      // ---- stability checks -------------------------------------------------
+      if (!Number.isFinite(sumRho) || !Number.isFinite(Fx) || !Number.isFinite(Fy)) {
+        this.status = 'unstable';
+        this.statusMsg = 'Non-finite (NaN/Infinity) density or velocity detected at step ' + this.t + '.';
+      } else if (minR <= 0.3 || maxR >= 3) {
+        this.status = 'unstable';
+        this.statusMsg = 'Density left the physically admissible range (min ' + minR.toFixed(3) +
+          ', max ' + maxR.toFixed(3) + ') at step ' + this.t + '.';
+      } else if (this.maxU > 0.45) {
+        this.status = 'unstable';
+        this.statusMsg = 'Local velocity ' + this.maxU.toFixed(3) + ' exceeded 0.45 lattice units ' +
+          '(Mach ' + (this.maxU / Math.sqrt(CS2)).toFixed(2) + ') at step ' + this.t + '.';
+      }
+      return this.status === 'ok';
+    }
+
+    /** Drag/lift coefficients based on inlet velocity and diameter (per unit span). */
+    coefficients() {
+      const q = 0.5 * 1.0 * this.U * this.U * this.D;
+      return { Cd: this.Fx / q, Cl: this.Fy / q };
+    }
+
+    /** Vorticity  w = dv/dx - du/dy  (central differences, y up). */
+    vorticity(out) {
+      const { nx, ny, ux, uy, solid } = this;
+      for (let y = 1; y < ny - 1; y++) for (let x = 1; x < nx - 1; x++) {
+        const idx = y * nx + x;
+        out[idx] = solid[idx] ? 0 :
+          0.5 * (uy[idx + 1] - uy[idx - 1]) - 0.5 * (ux[idx + nx] - ux[idx - nx]);
+      }
+      return out;
+    }
+
+    /** Recirculation length behind the cylinder on the centreline, in diameters (null if none). */
+    recirculationLength() {
+      const { nx, ux, solid } = this;
+      const y = Math.round(this.cyc);
+      let x = Math.floor(this.cxc + this.D / 2) + 1;
+      while (x < nx && solid[y * nx + x]) x++;
+      const xs = x;
+      if (ux[y * nx + x] >= 0 && ux[y * nx + x + 1] >= 0) return null;
+      while (x < nx - 2 && ux[y * nx + x] < 0) x++;
+      if (x >= nx - 2) return null;
+      const u0 = ux[y * nx + x - 1], u1 = ux[y * nx + x];
+      const xr = (x - 1) + (-u0) / (u1 - u0);           // linear interpolation of u = 0
+      const rear = this.cxc + this.D / 2;
+      return { LrD: (xr - rear) / this.D, xReattach: xr, xStart: xs };
+    }
+
+    /** Pressure coefficient Cp = cs^2 (rho - rho_in) / (U^2/2), referenced to the mean inlet-plane pressure. */
+    cp(idx) { return CS2 * (this.rho[idx] - this.rhoIn) / (0.5 * this.U * this.U); }
+
+    /** Pressure coefficient along the cylinder surface (first fluid nodes), sorted by angle from the front stagnation point. */
+    surfaceCp() {
+      const { nx, rho } = this, q = 0.5 * this.U * this.U, out = [];
+      for (const idx of this.surface) {
+        const x = idx % nx, y = (idx / nx) | 0;
+        let th = Math.atan2(y - this.cyc, x - this.cxc);          // 0 = rear
+        let deg = 180 - Math.abs(th) * 180 / Math.PI;           // 0 = front stagnation
+        out.push({ theta: deg, upper: th >= 0, Cp: CS2 * (rho[idx] - this.rhoIn) / q });
+      }
+      out.sort((a, b) => a.theta - b.theta);
+      return out;
+    }
+  }
+
+  /** Analyse a lift-coefficient history: amplitude, rms, and Strouhal number from zero crossings. */
+  function analyseSignal(tStar, sig, fromFrac) {
+    const n = sig.length;
+    const i0 = Math.floor(n * (fromFrac === undefined ? 0.5 : fromFrac));
+    if (n - i0 < 20) return null;
+    let mean = 0, min = Infinity, max = -Infinity;
+    for (let i = i0; i < n; i++) { mean += sig[i]; if (sig[i] < min) min = sig[i]; if (sig[i] > max) max = sig[i]; }
+    mean /= (n - i0);
+    let rms = 0;
+    for (let i = i0; i < n; i++) rms += (sig[i] - mean) * (sig[i] - mean);
+    rms = Math.sqrt(rms / (n - i0));
+    // upward zero crossings of (sig - mean), linear interpolation
+    const ups = [];
+    for (let i = i0 + 1; i < n; i++) {
+      const a = sig[i - 1] - mean, b = sig[i] - mean;
+      if (a < 0 && b >= 0) ups.push(tStar[i - 1] + (tStar[i] - tStar[i - 1]) * (-a) / (b - a));
+    }
+    let period = null, periodCV = null;
+    if (ups.length >= 3) {
+      const ps = [];
+      for (let k = 1; k < ups.length; k++) ps.push(ups[k] - ups[k - 1]);
+      const pm = ps.reduce((s, v) => s + v, 0) / ps.length;
+      const sd = Math.sqrt(ps.reduce((s, v) => s + (v - pm) * (v - pm), 0) / ps.length);
+      period = pm; periodCV = sd / pm;
+    }
+    return { mean, min, max, amp: 0.5 * (max - min), rms, period, periodCV,
+             St: period ? 1 / period : null, cycles: Math.max(0, ups.length - 1), window: [tStar[i0], tStar[n - 1]] };
+  }
+
+  /**
+   * Summarise a run from its recorded history (t* = t U / D).
+   * Statistics use the window  t* in [max(t_end/2, t_end - 40), t_end]
+   * so the start-up transient is excluded. Classification thresholds are
+   * documented in the Methodology panel.
+   */
+  function summarise(t, cd, cl) {
+    const n = t.length;
+    if (n < 40) return null;
+    const tEnd = t[n - 1], tFrom = Math.max(0.5 * tEnd, tEnd - 40);
+    let i0 = 0; while (i0 < n - 1 && t[i0] < tFrom) i0++;
+    const a = analyseSignal(t, cl, i0 / n), b = analyseSignal(t, cd, i0 / n);
+    if (!a || !b) return null;
+    let state, stateText;
+    if (tEnd < 15) { state = 'developing'; stateText = 'Developing (t* < 15): start-up transient'; }
+    else if (a.amp > 0.02 && a.cycles >= 3 && a.periodCV < 0.1) { state = 'shedding'; stateText = 'Periodic vortex shedding'; }
+    else if (a.amp < 0.01 && b.rms < 0.005 * Math.abs(b.mean)) { state = 'steady'; stateText = 'Steady, symmetric wake'; }
+    else { state = 'transitional'; stateText = 'Unsteady, not yet periodic: keep running'; }
+    return {
+      window: [t[i0], tEnd], CdMean: b.mean, CdStd: b.rms, CdMin: b.min, CdMax: b.max,
+      ClMean: a.mean, ClAmp: a.amp, ClRms: a.rms, St: state === 'shedding' ? a.St : null,
+      cycles: a.cycles, periodCV: a.periodCV, state, stateText
+    };
+  }
+
+  return { Q, CX, CY, W, OPP, MIRY, CS2, feq, viscosityFromTau, tauFromViscosity, Solver, analyseSignal, summarise };
+})();
+
+
+</script>
+<script>
+/* ==========================================================================
+   CylinderFlow — solver verification suite.
+   Runs in Node during development and from the "Verification" tab in the app.
+   Every check computes its own pass/fail from numbers; nothing is hard-coded.
+   ========================================================================== */
+function runSelfTests(LBM, quick) {
+  'use strict';
+  const { Q, CX, CY, W, OPP, MIRY, feq, Solver } = LBM;
+  const results = [];
+  const add = (group, name, pass, detail) => results.push({ group, name, pass: !!pass, detail });
+  const close = (a, b, tol) => Math.abs(a - b) <= tol;
+  let seed = 12345;
+  const rnd = () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; };
+
+  // ---------------------------------------------------------------- 1. lattice
+  {
+    let s = 0, sx = 0, sy = 0, sxx = 0, syy = 0, sxy = 0, sx4 = 0, sx2y2 = 0;
+    for (let i = 0; i < Q; i++) {
+      s += W[i]; sx += W[i] * CX[i]; sy += W[i] * CY[i];
+      sxx += W[i] * CX[i] * CX[i]; syy += W[i] * CY[i] * CY[i]; sxy += W[i] * CX[i] * CY[i];
+      sx4 += W[i] * CX[i] ** 4; sx2y2 += W[i] * CX[i] ** 2 * CY[i] ** 2;
+    }
+    add('Lattice', 'Weights sum to 1', close(s, 1, 1e-15), 'Σw = ' + s.toPrecision(16));
+    add('Lattice', 'First moment Σ w c = 0', close(sx, 0, 1e-15) && close(sy, 0, 1e-15), `(${sx}, ${sy})`);
+    add('Lattice', 'Second moment Σ w cαcβ = cs² δαβ', close(sxx, 1 / 3, 1e-15) && close(syy, 1 / 3, 1e-15) && close(sxy, 0, 1e-15),
+      `xx=${sxx.toFixed(15)}, yy=${syy.toFixed(15)}, xy=${sxy}`);
+    add('Lattice', 'Fourth moment isotropy (Σw cx⁴ = 3cs⁴, Σw cx²cy² = cs⁴)', close(sx4, 1 / 3, 1e-15) && close(sx2y2, 1 / 9, 1e-15),
+      `${sx4.toFixed(15)}, ${sx2y2.toFixed(15)}`);
+    let okOpp = true, okMir = true, okSet = true;
+    const seen = new Set();
+    for (let i = 0; i < Q; i++) {
+      if (CX[OPP[i]] !== -CX[i] || CY[OPP[i]] !== -CY[i]) okOpp = false;
+      if (CX[MIRY[i]] !== CX[i] || CY[MIRY[i]] !== -CY[i]) okMir = false;
+      seen.add(CX[i] + ',' + CY[i]);
+      if (Math.abs(CX[i]) > 1 || Math.abs(CY[i]) > 1) okSet = false;
+    }
+    add('Lattice', 'Nine distinct velocities in {-1,0,1}²', okSet && seen.size === 9, seen.size + ' distinct');
+    add('Lattice', 'Opposite-direction table (bounce-back)', okOpp, 'c_opp(i) = −c_i for all i');
+    add('Lattice', 'Mirror table (free-slip walls)', okMir, 'c_mir(i) = (c_x, −c_y)');
+  }
+
+  // ---------------------------------------------------------------- 2. equilibrium
+  {
+    let worst = 0;
+    for (let k = 0; k < 200; k++) {
+      const rho = 0.8 + 0.4 * rnd(), ux = 0.3 * (rnd() - 0.5), uy = 0.3 * (rnd() - 0.5);
+      let m0 = 0, mx = 0, my = 0, pxx = 0, pyy = 0, pxy = 0;
+      for (let i = 0; i < Q; i++) {
+        const fe = feq(i, rho, ux, uy);
+        m0 += fe; mx += fe * CX[i]; my += fe * CY[i];
+        pxx += fe * CX[i] * CX[i]; pyy += fe * CY[i] * CY[i]; pxy += fe * CX[i] * CY[i];
+      }
+      worst = Math.max(worst, Math.abs(m0 - rho), Math.abs(mx - rho * ux), Math.abs(my - rho * uy),
+        Math.abs(pxx - (rho * ux * ux + rho / 3)), Math.abs(pyy - (rho * uy * uy + rho / 3)), Math.abs(pxy - rho * ux * uy));
+    }
+    add('Equilibrium', 'Moments of f_eq: ρ, ρu, ρuu + ρcs²I (200 random states)', worst < 1e-14, 'max error ' + worst.toExponential(2));
+    let pos = true;
+    for (let i = 0; i < Q; i++) if (feq(i, 1, 0.1, 0.05) <= 0) pos = false;
+    add('Equilibrium', 'f_eq positive at |u| ≈ 0.11', pos, 'all nine populations > 0');
+  }
+
+  // ---------------------------------------------------------------- 3. streaming
+  {
+    const s = new Solver({ nx: 6, ny: 6, tau: 1, U: 0, D: 0, xBC: 'periodic', yBC: 'periodic', obstacle: 'none' });
+    const N = s.N;
+    for (let idx = 0; idx < N; idx++) for (let i = 0; i < Q; i++) s.f[i * N + idx] = W[i];
+    let ok = true;
+    const marks = [];
+    for (let i = 1; i < Q; i++) { const idx = 2 * 6 + 2; s.f[i * N + idx] += 0.01 * i; marks.push(i); }
+    s.omegaX.fill(0);                             // pure streaming
+    s.step();
+    for (const i of marks) {
+      const dst = (2 + CY[i]) * 6 + (2 + CX[i]);
+      if (!close(s.f[i * N + dst] - W[i], 0.01 * i, 1e-15)) ok = false;
+    }
+    // periodic wrap: a population at x = 5 moving east arrives at x = 0
+    const s2 = new Solver({ nx: 6, ny: 6, tau: 1, U: 0, D: 0, xBC: 'periodic', yBC: 'periodic', obstacle: 'none' });
+    for (let idx = 0; idx < N; idx++) for (let i = 0; i < Q; i++) s2.f[i * N + idx] = W[i];
+    s2.f[1 * N + 3 * 6 + 5] += 0.5; s2.omegaX.fill(0); s2.step();
+    const wrap = close(s2.f[1 * N + 3 * 6 + 0] - W[1], 0.5, 1e-15);
+    add('Streaming', 'Each population moves exactly one link along c_i', ok, '8 marked populations checked');
+    add('Streaming', 'Periodic wrap-around', wrap, 'east-moving population x=5 → x=0');
+  }
+
+  // ---------------------------------------------------------------- 4. collision conserves ρ and ρu
+  {
+    const s = new Solver({ nx: 8, ny: 8, tau: 0.7, U: 0, D: 0, xBC: 'periodic', yBC: 'periodic', obstacle: 'none' });
+    const N = s.N;
+    for (let idx = 0; idx < N; idx++) for (let i = 0; i < Q; i++) s.f[i * N + idx] = W[i] * (0.9 + 0.2 * rnd());
+    const mom = (f) => { let m = 0, px = 0, py = 0; for (let idx = 0; idx < N; idx++) for (let i = 0; i < Q; i++) { const v = f[i * N + idx]; m += v; px += v * CX[i]; py += v * CY[i]; } return [m, px, py]; };
+    const a = mom(s.f);
+    for (let k = 0; k < 50; k++) s.step();
+    const b = mom(s.f);
+    const err = Math.max(Math.abs(a[0] - b[0]) / a[0], Math.abs(a[1] - b[1]), Math.abs(a[2] - b[2]));
+    add('Collision', 'BGK collision + streaming conserve mass and momentum (random non-equilibrium state, 50 steps)', err < 1e-12, 'max drift ' + err.toExponential(2));
+  }
+
+  // ---------------------------------------------------------------- 5. viscosity: decaying shear wave
+  for (const tau of [0.6, 0.8, 1.2]) {
+    const L = 64, A = 1e-3, k = 2 * Math.PI / L;
+    const s = new Solver({ nx: 4, ny: L, tau, U: 0, D: 0, xBC: 'periodic', yBC: 'periodic', obstacle: 'none',
+      initFn: (x, y) => [A * Math.sin(k * y), 0] });
+    const amp = () => { let a = 0; for (let y = 0; y < L; y++) a += s.ux[y * 4] * Math.sin(k * y); return 2 * a / L; };
+    // velocity arrays are filled after the first step; measure decay between steps 10 and 10+T
+    for (let n = 0; n < 10; n++) s.step();
+    const a0 = amp(), T = quick ? 400 : 1000;
+    for (let n = 0; n < T; n++) s.step();
+    const a1 = amp();
+    const nuMeas = -Math.log(a1 / a0) / (k * k * T);
+    const nuTh = (tau - 0.5) / 3;
+    const rel = Math.abs(nuMeas - nuTh) / nuTh;
+    add('Viscosity', `Shear-wave decay gives ν = cs²(τ−½) (τ = ${tau})`, rel < 0.01,
+      `measured ${nuMeas.toExponential(4)}, theory ${nuTh.toExponential(4)}, error ${(100 * rel).toFixed(3)} %`);
+  }
+
+  // ---------------------------------------------------------------- 6. bounce-back: Poiseuille flow
+  {
+    const ny = 34, tau = 0.8, nu = (tau - 0.5) / 3, gx = 1e-6;
+    const s = new Solver({ nx: 3, ny, tau, U: 0, D: 0, xBC: 'periodic', yBC: 'periodic', obstacle: 'none', gx,
+      solidFn: (x, y) => y === 0 || y === ny - 1 });
+    const steps = quick ? 6000 : 12000;
+    for (let n = 0; n < steps; n++) s.step();
+    // walls located half-way between the solid row and the first fluid row: y = 0.5 and y = ny − 1.5
+    const H = ny - 2;
+    let num = 0, den = 0, umax = 0;
+    for (let y = 1; y < ny - 1; y++) {
+      const yy = y - 0.5;
+      const ua = gx / (2 * nu) * yy * (H - yy);
+      const un = s.ux[y * 3 + 1];
+      num += (un - ua) ** 2; den += ua * ua; umax = Math.max(umax, un);
+    }
+    const l2 = Math.sqrt(num / den);
+    add('Boundaries', 'Half-way bounce-back reproduces Poiseuille profile (no-slip walls)', l2 < 0.01,
+      `L2 error ${(100 * l2).toFixed(3)} %, u_max = ${umax.toExponential(3)} (theory ${(gx * H * H / (8 * nu)).toExponential(3)})`);
+  }
+
+  // ---------------------------------------------------------------- 7. mass conservation in a closed box
+  {
+    const n = 24;
+    const s = new Solver({ nx: n, ny: n, tau: 0.6, U: 0, D: 0, xBC: 'periodic', yBC: 'periodic', obstacle: 'none',
+      solidFn: (x, y) => x === 0 || y === 0 || x === n - 1 || y === n - 1 || ((x - 12) ** 2 + (y - 12) ** 2 < 9),
+      initFn: (x, y) => [0.05 * Math.sin(x / 3), 0.05 * Math.cos(y / 4)] });
+    const m0 = s.computeMass();
+    for (let k = 0; k < 2000; k++) s.step();
+    const m1 = s.computeMass();
+    add('Boundaries', 'Closed box with bounce-back walls + obstacle conserves mass (2000 steps)', Math.abs(m1 - m0) / m0 < 1e-12,
+      `relative drift ${(Math.abs(m1 - m0) / m0).toExponential(2)}`);
+  }
+
+  // ---------------------------------------------------------------- 8. momentum exchange = fluid momentum change
+  {
+    const s = new Solver({ nx: 60, ny: 40, tau: 0.65, U: 0.05, D: 10, cxc: 20, cyc: 19.5, xBC: 'periodic', yBC: 'periodic', U0: 0.05 });
+    const N = s.N;
+    const P = () => { let px = 0, py = 0; for (let idx = 0; idx < N; idx++) if (!s.solid[idx]) for (let i = 0; i < Q; i++) { px += s.f[i * N + idx] * CX[i]; py += s.f[i * N + idx] * CY[i]; } return [px, py]; };
+    let worst = 0, Fmax = 0;
+    for (let k = 0; k < 300; k++) {
+      const a = P(); s.step(); const b = P();
+      worst = Math.max(worst, Math.abs((b[0] - a[0]) + s.Fx), Math.abs((b[1] - a[1]) + s.Fy));
+      Fmax = Math.max(Fmax, Math.abs(s.Fx));
+    }
+    add('Forces', 'Momentum-exchange force equals the fluid momentum lost each step', worst < 1e-12 * Math.max(1, Fmax * 1e3),
+      `max |ΔP + F| = ${worst.toExponential(2)} (|F| up to ${Fmax.toExponential(2)})`);
+  }
+
+  // ---------------------------------------------------------------- 9. inlet/outlet consistency
+  {
+    const U = 0.08;
+    const s = new Solver({ nx: 80, ny: 30, tau: 0.6, U, D: 0, obstacle: 'none' });
+    for (let k = 0; k < 500; k++) s.step();
+    let e = 0;
+    for (let idx = 0; idx < s.N; idx++) e = Math.max(e, Math.abs(s.ux[idx] - U), Math.abs(s.uy[idx]), Math.abs(s.rho[idx] - 1));
+    add('Boundaries', 'Empty channel: inlet/outlet/free-slip preserve uniform flow', e < 1e-12, 'max deviation ' + e.toExponential(2));
+  }
+
+  // ---------------------------------------------------------------- 10. Reynolds-number mapping
+  {
+    let worst = 0;
+    for (const [Re, U, D] of [[20, 0.08, 20], [100, 0.08, 20], [180, 0.1, 24], [40, 0.05, 16]]) {
+      const nu = U * D / Re, tau = LBM.tauFromViscosity(nu);
+      const back = U * D / LBM.viscosityFromTau(tau);
+      worst = Math.max(worst, Math.abs(back - Re) / Re, Math.abs(tau - (3 * nu + 0.5)));
+    }
+    add('Parameters', 'Re = UD/ν and τ = 3ν + ½ round-trip', worst < 1e-12, 'max relative error ' + worst.toExponential(2));
+  }
+
+  // ---------------------------------------------------------------- 11. symmetry of the cylinder flow
+  {
+    const s = new Solver({ nx: 160, ny: 64, tau: 0.5 + 3 * (0.08 * 12 / 20), U: 0.08, D: 12, cxc: 32, cyc: 31.5, perturb: 0 });
+    let maxCl = 0;
+    for (let k = 0; k < (quick ? 800 : 2000); k++) { s.step(); maxCl = Math.max(maxCl, Math.abs(s.coefficients().Cl)); }
+    add('Forces', 'Symmetric set-up without seed gives zero lift (Re 20)', maxCl < 1e-9, 'max |Cl| = ' + maxCl.toExponential(2));
+    add('Forces', 'Drag is positive and finite', s.coefficients().Cd > 0 && Number.isFinite(s.coefficients().Cd), 'Cd = ' + s.coefficients().Cd.toFixed(4));
+    let solidU = 0;
+    for (let idx = 0; idx < s.N; idx++) if (s.solid[idx]) solidU = Math.max(solidU, Math.abs(s.ux[idx]), Math.abs(s.uy[idx]));
+    add('Boundaries', 'Velocity inside the cylinder stays zero', solidU === 0, 'max |u| in solid = ' + solidU);
+  }
+
+  // ---------------------------------------------------------------- 12. instability detection
+  {
+    const s = new Solver({ nx: 120, ny: 50, tau: 0.5003, U: 0.25, D: 12, perturb: 0.1 });
+    let k = 0; while (k < 5000 && s.step()) k++;
+    add('Stability', 'Divergent run is detected and stopped (τ = 0.5003, U = 0.25)', s.status === 'unstable',
+      s.status === 'unstable' ? s.statusMsg : 'not detected within 5000 steps');
+  }
+  return results;
+}
+
+
+</script>
+<script>
+(function () {
+'use strict';
+const $ = (id) => document.getElementById(id);
+const fmt = (v, d = 3) => (v === null || v === undefined || !Number.isFinite(v)) ? '—' : v.toFixed(d);
+const fmtE = (v, d = 2) => (v === null || v === undefined || !Number.isFinite(v)) ? '—' : v.toExponential(d);
+
+// ============================================================ configuration
+const GRIDS = {
+  coarse:   { nx: 300, ny: 120, D: 15, label: '300×120' },
+  standard: { nx: 400, ny: 160, D: 20, label: '400×160' },
+  fine:     { nx: 600, ny: 240, D: 30, label: '600×240' }
+};
+const PRESETS = [
+  { Re: 20,  name: 'Low Re · 20',          desc: 'steady twin vortices' },
+  { Re: 40,  name: 'Re 40',                desc: 'steady, below onset' },
+  { Re: 100, name: 'Intermediate · 100',   desc: 'periodic shedding' },
+  { Re: 180, name: 'Higher · 180',         desc: 'upper 2-D laminar range' }
+];
+const FLUIDS = {
+  water: { nu: 1.004e-6, rho: 998.2, name: 'Water 20 °C' },
+  air:   { nu: 1.516e-5, rho: 1.204, name: 'Air 20 °C' }
+};
+// published unconfined values used ONLY as labelled context markers
+const REFS = [
+  { Re: 20,  Cd: 2.045, src: 'Dennis & Chang 1970' },
+  { Re: 40,  Cd: 1.522, src: 'Dennis & Chang 1970' },
+  { Re: 100, Cd: 1.33,  src: 'Park, Kwon & Choi 1998 (mean)' }
+];
+const TAU_MIN = 0.505, TAU_WARN = 0.52, TAU_MAX = 2.5, U_MAX = 0.15;
+const SEED_AMP = 0.1, SPONGE_FRAC = 0.15, FRAME_BUDGET_MS = 14, MAX_SAMPLES = 24000;
+
+// ============================================================ state
+const st = {
+  p: { grid: 'standard', drive: 'Re', Re: 100, nu: 0.016, U: 0.08, D: 20, seed: true, sponge: true },
+  applied: null, solver: null, running: false, unstable: false,
+  viz: 'vorticity', rangeMul: 1, stepsPerFrame: 12,
+  series: null, sampleEvery: 1, lastSampleT: 0,
+  perf: { steps: 0, t0: performance.now(), sps: 0, mlups: 0 },
+  particles: [], vort: null, img: null, off: null, offCtx: null,
+  probe: null, lastSnapT: 0, film: [], cases: [], summary: null
+};
+
+// ============================================================ colour maps
+function buildLUT(stops) {
+  const lut = new Uint8ClampedArray(256 * 3);
+  for (let k = 0; k < 256; k++) {
+    const t = k / 255 * (stops.length - 1), i = Math.min(stops.length - 2, Math.floor(t)), f = t - i;
+    for (let c = 0; c < 3; c++) lut[k * 3 + c] = stops[i][c] + (stops[i + 1][c] - stops[i][c]) * f;
+  }
+  return lut;
+}
+const VIRIDIS = buildLUT([[68,1,84],[72,36,117],[65,68,135],[53,95,141],[42,120,142],[33,145,140],[34,168,132],[68,191,112],[122,209,81],[189,223,38],[253,231,37]]);
+const RDBU = buildLUT([[5,48,97],[33,102,172],[67,147,195],[146,197,222],[209,229,240],[247,247,247],[253,219,199],[244,165,130],[214,96,77],[178,24,43],[103,0,31]]);
+
+// ============================================================ derived parameters & validation
+function derive(p) {
+  const g = GRIDS[p.grid];
+  let Re, nu;
+  if (p.drive === 'Re') { Re = p.Re; nu = p.U * p.D / Re; } else { nu = p.nu; Re = p.U * p.D / nu; }
+  const tau = 3 * nu + 0.5;
+  const cxc = Math.round(g.nx / 5), cyc = (g.ny - 1) / 2;
+  const d = {
+    nx: g.nx, ny: g.ny, Re, nu, tau, U: p.U, D: p.D, Ma: p.U * Math.sqrt(3), blockage: p.D / g.ny,
+    cxc, cyc, upstream: (cxc - p.D / 2) / p.D, downstream: (g.nx - cxc - p.D / 2) / p.D,
+    stepsPerTstar: p.D / p.U, cells: g.nx * g.ny, errors: [], warnings: [], infos: []
+  };
+  if (!(tau >= TAU_MIN)) d.errors.push(`τ = ${tau.toFixed(4)} is below ${TAU_MIN}: BGK collision is unstable or badly under-resolved this close to τ = ½. Increase D, lower Re, or (in ν mode) raise ν.`);
+  if (tau > TAU_MAX) d.errors.push(`τ = ${tau.toFixed(3)} exceeds ${TAU_MAX}: very viscous; bounce-back wall position becomes τ-dependent and inaccurate. Lower ν or raise Re.`);
+  if (p.U > U_MAX + 1e-12) d.errors.push(`U = ${p.U} exceeds ${U_MAX} (Ma too high for the weakly compressible model).`);
+  if (d.blockage > 0.25 + 1e-12) d.errors.push(`Blockage D/H = ${(100 * d.blockage).toFixed(1)} % exceeds 25 %.`);
+  if (!d.errors.length) {
+    if (tau < TAU_WARN) d.warnings.push(`τ = ${tau.toFixed(4)} is close to the BGK stability limit; the run may diverge (the solver will stop safely if it does). More cells per diameter is the robust fix.`);
+    if (Re > 190) d.warnings.push('Re > ~190: a real cylinder wake becomes three-dimensional. This 2-D result is a model of a strictly 2-D flow.');
+    if (Re < 5) d.infos.push('Re < 5: creeping flow, little or no separation expected.');
+    if (p.D < 16) d.warnings.push(`Only ${p.D} cells per diameter: forces and Strouhal number will be noticeably resolution-dependent.`);
+    if (d.blockage > 0.15) d.warnings.push(`Blockage ${(100 * d.blockage).toFixed(1)} %: strong confinement raises C_D and St.`);
+    if (d.Ma > 0.2) d.warnings.push(`Inlet Mach ${d.Ma.toFixed(3)}: compressibility error ∝ Ma² is no longer small.`);
+    if (d.upstream < 3) d.warnings.push(`Only ${d.upstream.toFixed(1)} D of upstream length: the inlet is close to the cylinder.`);
+  }
+  return d;
+}
+function paramsEqual(a, b) {
+  return a && b && a.grid === b.grid && a.drive === b.drive && Math.abs(a.U - b.U) < 1e-12 && a.D === b.D &&
+    a.seed === b.seed && a.sponge === b.sponge && (a.drive === 'Re' ? a.Re === b.Re : Math.abs(a.nu - b.nu) < 1e-12);
+}
+
+// ============================================================ simulation lifecycle
+function newSeries() { return { t: [], step: [], cd: [], cl: [], ux: [], umax: [], rho: [] }; }
+function createSolver() {
+  const d = derive(st.p);
+  if (d.errors.length) { setStatus('pending', 'Invalid parameters'); return false; }
+  st.applied = Object.assign({}, st.p); st.der = d;
+  st.solver = new LBM.Solver({
+    nx: d.nx, ny: d.ny, tau: d.tau, U: d.U, D: d.D, cxc: d.cxc, cyc: d.cyc,
+    perturb: st.p.seed ? SEED_AMP : 0, sponge: st.p.sponge ? SPONGE_FRAC : 0, spongeTau: 1.0
+  });
+  st.series = newSeries();
+  st.sampleEvery = Math.max(1, Math.round(0.05 * d.D / d.U));
+  st.unstable = false; st.summary = null; st.lastSnapT = 0;
+  st.vort = new Float64Array(st.solver.N);
+  st.img = new ImageData(d.nx, d.ny);
+  st.off = document.createElement('canvas'); st.off.width = d.nx; st.off.height = d.ny;
+  st.offCtx = st.off.getContext('2d');
+  initParticles();
+  $('banner').style.display = 'none';
+  st.perf = { steps: 0, t0: performance.now(), sps: 0, mlups: 0 };
+  return true;
+}
+function resetSim(keepRunning) {
+  const was = st.running;
+  st.running = false;
+  if (!createSolver()) { updateButtons(); return; }
+  st.film = []; renderFilm();
+  st.running = !!(keepRunning && was);
+  setStatus(st.running ? 'running' : 'ready');
+  updateButtons(); updateParamPanel(); refreshMetrics(true); drawCharts(true);
+}
+function start() {
+  if (st.unstable || !st.solver) return;
+  if (!paramsEqual(st.p, st.applied)) { if (!createSolver()) return; st.film = []; renderFilm(); }
+  st.running = true; st.perf = { steps: 0, t0: performance.now(), sps: st.perf.sps, mlups: st.perf.mlups };
+  setStatus('running'); updateButtons(); updateParamPanel();
+}
+function pause() { if (!st.running) return; st.running = false; setStatus('paused'); updateButtons(); }
+function onUnstable() {
+  st.running = false; st.unstable = true;
+  setStatus('unstable');
+  const s = st.solver, d = st.der;
+  const b = $('banner');
+  b.innerHTML = `<div class="msg err"><b>Simulation stopped: numerical instability.</b><br>${s.statusMsg}<br>
+  At τ = ${d.tau.toFixed(4)}, U = ${d.U}, D = ${d.D} (Re = ${d.Re.toFixed(1)}) the BGK scheme did not remain bounded.
+  Results after this point are not physical and are not displayed or recorded; data before step ${s.t} remain in the charts for inspection.
+  To continue: increase D, reduce U, or reduce Re (each raises τ), then Apply &amp; reset.</div>`;
+  b.style.display = 'block';
+  updateButtons();
+}
+
+function sample() {
+  const s = st.solver, S = st.series, c = s.coefficients(), U = s.U;
+  S.t.push(s.t * U / s.D); S.step.push(s.t); S.cd.push(c.Cd); S.cl.push(c.Cl);
+  S.ux.push(s.meanUx / U); S.umax.push(s.maxU / U); S.rho.push(s.meanRho);
+  if (S.t.length > MAX_SAMPLES) {                    // decimate by 2 to bound memory
+    for (const k of Object.keys(S)) S[k] = S[k].filter((_, i) => i % 2 === 0);
+    st.sampleEvery *= 2;
+  }
+}
+
+// ============================================================ main loop
+let lastMetrics = 0, lastCharts = 0;
+function frame(now) {
+  let stepsDone = 0;
+  if (st.running && st.solver) {
+    const s = st.solver, t0 = performance.now();
+    while (stepsDone < st.stepsPerFrame) {
+      if (!s.step()) { onUnstable(); break; }
+      stepsDone++;
+      if (s.t % st.sampleEvery === 0) sample();
+      if (performance.now() - t0 > FRAME_BUDGET_MS) break;
+    }
+    st.perf.steps += stepsDone;
+    const el = performance.now() - st.perf.t0;
+    if (el > 1000) {
+      st.perf.sps = st.perf.steps * 1000 / el; st.perf.mlups = st.perf.sps * s.N / 1e6;
+      st.perf.steps = 0; st.perf.t0 = performance.now();
+    }
+    if (stepsDone && $('ovParticles').checked) advectParticles(stepsDone);
+    const tStar = s.t * s.U / s.D;
+    if ($('autoSnap').checked && tStar - st.lastSnapT >= 10 && !st.unstable) { st.lastSnapT = Math.floor(tStar / 10) * 10; snapshot(); }
+  }
+  if (st.solver) render();
+  if (now - lastMetrics > 150) { refreshMetrics(); lastMetrics = now; }
+  if (now - lastCharts > 400) { drawCharts(); lastCharts = now; }
+  requestAnimationFrame(frame);
+}
+
+// ============================================================ rendering
+const cv = $('simCanvas'), ctx = cv.getContext('2d');
+function sizeCanvas() {
+  if (!st.der) return;
+  const wrap = $('canvasWrap'), dpr = window.devicePixelRatio || 1;
+  let w = wrap.clientWidth;
+  const full = document.fullscreenElement === $('simcard');
+  if (full) {
+    const availH = window.innerHeight - 190;
+    w = Math.min(w, availH * st.der.nx / st.der.ny);
+    cv.style.margin = '0 auto';
+  } else cv.style.margin = '';
+  const h = w * st.der.ny / st.der.nx;
+  cv.style.width = w + 'px'; cv.style.height = h + 'px';
+  cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
+  const cb = $('cbar'); cb.width = Math.round(cb.clientWidth * dpr); cb.height = Math.round(26 * dpr);
+}
+function vizRange() {
+  const m = st.rangeMul;
+  switch (st.viz) {
+    case 'vorticity': return { lo: -5 * m, hi: 5 * m, lut: RDBU, name: 'Vorticity ωD/U  (red = anticlockwise)', unit: '' };
+    case 'pressure':  return { lo: -1.5 * m, hi: 1.0 * m, lut: RDBU, name: 'Pressure coefficient Cp = cs²(ρ − ρ_in)/(½U²)', unit: '', centre: 0 };
+    default:          return { lo: 0, hi: 1.6 * Math.min(m, 1.5), lut: VIRIDIS, name: 'Velocity magnitude |u|/U', unit: '' };
+  }
+}
+function fillField(target) {
+  const s = st.solver, { nx, ny, ux, uy, rho, solid } = s, U = s.U, data = target.data;
+  const R = vizRange(), lut = R.lut;
+  let scale, off;
+  const mode = st.viz === 'streamlines' ? 'velocity' : st.viz;
+  if (mode === 'vorticity') s.vorticity(st.vort);
+  const q = 0.5 * U * U, D = s.D, rIn = s.rhoIn;
+  // pressure uses a piecewise map so that Cp = 0 is white
+  for (let y = 0; y < ny; y++) {
+    const row = (ny - 1 - y) * nx;
+    for (let x = 0; x < nx; x++) {
+      const idx = y * nx + x, p = (row + x) * 4;
+      if (solid[idx]) { data[p] = 52; data[p + 1] = 60; data[p + 2] = 74; data[p + 3] = 255; continue; }
+      let v, k;
+      if (mode === 'velocity') {
+        v = Math.sqrt(ux[idx] * ux[idx] + uy[idx] * uy[idx]) / U;
+        k = (v - R.lo) / (R.hi - R.lo);
+      } else if (mode === 'vorticity') {
+        v = st.vort[idx] * D / U;
+        k = (v - R.lo) / (R.hi - R.lo);
+      } else {
+        v = (rho[idx] - rIn) / 3 / q;
+        k = v < 0 ? 0.5 * (1 - v / R.lo) : 0.5 + 0.5 * v / R.hi;
+      }
+      k = k < 0 ? 0 : k > 1 ? 1 : k;
+      const li = ((k * 255) | 0) * 3;
+      data[p] = lut[li]; data[p + 1] = lut[li + 1]; data[p + 2] = lut[li + 2]; data[p + 3] = 255;
+    }
+  }
+}
+function render() {
+  const s = st.solver, d = st.der;
+  fillField(st.img);
+  st.offCtx.putImageData(st.img, 0, 0);
+  const W = cv.width, H = cv.height, sx = W / d.nx, sy = H / d.ny;
+  ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(st.off, 0, 0, W, H);
+  if (st.viz === 'streamlines') { ctx.fillStyle = 'rgba(5,8,14,0.45)'; ctx.fillRect(0, 0, W, H); }
+  if (st.viz === 'streamlines' || $('ovStream').checked) drawStreamlines(sx, sy);
+  if ($('ovParticles').checked) drawParticles(sx, sy);
+  // sponge region marker
+  if (s.spongeStart < d.nx) {
+    const xs = s.spongeStart * sx;
+    ctx.fillStyle = 'rgba(255,255,255,0.05)'; ctx.fillRect(xs, 0, W - xs, H);
+    const dpr = window.devicePixelRatio || 1; ctx.font = `${10.5 * dpr}px system-ui`;
+    const tw = ctx.measureText('absorbing layer').width;
+    ctx.fillStyle = 'rgba(10,14,22,0.7)'; ctx.fillRect(xs + 4 * dpr, 4 * dpr, tw + 8 * dpr, 16 * dpr);
+    ctx.fillStyle = 'rgba(226,232,240,0.9)'; ctx.textBaseline = 'middle'; ctx.fillText('absorbing layer', xs + 8 * dpr, 12 * dpr); ctx.textBaseline = 'alphabetic';
+    ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.setLineDash([4 * dpr, 4 * dpr]); ctx.beginPath(); ctx.moveTo(xs, 0); ctx.lineTo(xs, H); ctx.stroke(); ctx.setLineDash([]);
+  }
+  // nominal circle outline (the solid nodes themselves are drawn grey)
+  ctx.strokeStyle = 'rgba(255,255,255,0.75)'; ctx.lineWidth = Math.max(1, (window.devicePixelRatio || 1));
+  ctx.beginPath(); ctx.ellipse((d.cxc + 0.5) * sx, (d.ny - 1 - d.cyc + 0.5) * sy, d.D / 2 * sx, d.D / 2 * sy, 0, 0, Math.PI * 2); ctx.stroke();
+  drawColorbar();
+}
+let cbarKey = '';
+function drawColorbar() {
+  const cb = $('cbar'), c = cb.getContext('2d'), R = vizRange();
+  const key = st.viz + R.lo + R.hi + cb.width;
+  if (key === cbarKey) return; cbarKey = key;
+  const W = cb.width, H = cb.height, dpr = window.devicePixelRatio || 1;
+  c.clearRect(0, 0, W, H);
+  const bh = 10 * dpr, pad = 4 * dpr;
+  for (let x = 0; x < W - 2 * pad; x++) {
+    const k = x / (W - 2 * pad - 1), li = Math.min(255, (k * 255) | 0) * 3;
+    c.fillStyle = `rgb(${R.lut[li]},${R.lut[li + 1]},${R.lut[li + 2]})`; c.fillRect(pad + x, 0, 1, bh);
+  }
+  c.fillStyle = '#93a1b5'; c.font = `${11 * dpr}px ui-monospace,monospace`; c.textBaseline = 'top';
+  const tick = (k, label) => { const x = pad + k * (W - 2 * pad); c.fillRect(x, bh, 1, 3 * dpr); c.textAlign = k === 0 ? 'left' : k === 1 ? 'right' : 'center'; c.fillText(label, x, bh + 5 * dpr); };
+  if (st.viz === 'pressure') { tick(0, R.lo.toFixed(2)); tick(0.5, '0'); tick(1, '+' + R.hi.toFixed(2)); }
+  else { tick(0, R.lo.toFixed(2)); tick(0.5, ((R.lo + R.hi) / 2).toFixed(2)); tick(1, R.hi.toFixed(2)); }
+  const notes = {
+    velocity: 'Grey = solid (staircase) nodes; white circle = nominal diameter. Values above the range saturate.',
+    vorticity: 'Central-difference vorticity of the instantaneous velocity field. Shear layers leave the shoulders; shed vortices alternate sign.',
+    pressure: 'Weakly compressible equation of state p = cs²ρ; reference p∞ = mean pressure on the inlet plane (4 D upstream, so slightly above the true free-stream value). Includes small acoustic fluctuations inherent to the model. Pressure inside the absorbing layer is affected by its artificial viscosity and is not physical.',
+    streamlines: 'Instantaneous streamlines (lab frame), RK2 integration of the bilinearly interpolated velocity field, over dimmed |u|/U.'
+  };
+  $('vizNote').innerHTML = `<b style="color:#cbd5e1">${R.name}</b> · ${notes[st.viz]}`;
+}
+
+// ---------- velocity interpolation (lattice coords, y up) ----------
+function velAt(x, y) {
+  const s = st.solver, nx = s.nx, ny = s.ny;
+  if (x < 0 || y < 0 || x > nx - 1.001 || y > ny - 1.001) return null;
+  const i = x | 0, j = y | 0, fx = x - i, fy = y - j, a = j * nx + i;
+  if (s.solid[a] || s.solid[a + 1] || s.solid[a + nx] || s.solid[a + nx + 1]) return null;
+  const w00 = (1 - fx) * (1 - fy), w10 = fx * (1 - fy), w01 = (1 - fx) * fy, w11 = fx * fy;
+  return [s.ux[a] * w00 + s.ux[a + 1] * w10 + s.ux[a + nx] * w01 + s.ux[a + nx + 1] * w11,
+          s.uy[a] * w00 + s.uy[a + 1] * w10 + s.uy[a + nx] * w01 + s.uy[a + nx + 1] * w11];
+}
+function trace(x, y, dir, maxLen) {
+  const pts = [[x, y]], h = 0.6, U = st.solver.U;
+  for (let k = 0; k < maxLen; k++) {
+    const v1 = velAt(x, y); if (!v1) break;
+    const m1 = Math.hypot(v1[0], v1[1]); if (m1 < 1e-3 * U) break;
+    const xm = x + 0.5 * h * dir * v1[0] / m1, ym = y + 0.5 * h * dir * v1[1] / m1;
+    const v2 = velAt(xm, ym); if (!v2) break;
+    const m2 = Math.hypot(v2[0], v2[1]); if (m2 < 1e-3 * U) break;
+    x += h * dir * v2[0] / m2; y += h * dir * v2[1] / m2;
+    pts.push([x, y]);
+  }
+  return pts;
+}
+function drawStreamlines(sx, sy) {
+  const s = st.solver, d = st.der, ny = s.ny, dpr = window.devicePixelRatio || 1;
+  const lines = [];
+  const nSeed = 30;
+  for (let k = 1; k < nSeed; k++) lines.push(trace(1.2, k * (ny - 1) / nSeed, 1, 1600));
+  // seeds in the near wake, integrated both ways, reveal recirculation
+  for (let k = -5; k <= 5; k++) {
+    const x = d.cxc + 0.8 * d.D, y = d.cyc + k * 0.14 * d.D;
+    lines.push(trace(x, y, 1, 500)); lines.push(trace(x, y, -1, 500));
+  }
+  ctx.lineWidth = 1.1 * dpr; ctx.strokeStyle = 'rgba(240,249,255,0.85)';
+  for (const L of lines) {
+    if (L.length < 3) continue;
+    ctx.beginPath(); ctx.moveTo(L[0][0] * sx + sx / 2, (ny - 1 - L[0][1]) * sy + sy / 2);
+    for (let i = 1; i < L.length; i++) ctx.lineTo(L[i][0] * sx + sx / 2, (ny - 1 - L[i][1]) * sy + sy / 2);
+    ctx.stroke();
+  }
+}
+// ---------- tracer particles ----------
+function initParticles() {
+  st.particles = [];
+  const s = st.solver; if (!s) return;
+  for (let k = 0; k < 1800; k++) st.particles.push(spawn(true));
+}
+function spawn(anywhere) {
+  const s = st.solver;
+  for (let tries = 0; tries < 20; tries++) {
+    const x = anywhere ? Math.random() * (s.nx - 2) : Math.random() * 3, y = 1 + Math.random() * (s.ny - 3);
+    if (!s.solid[(y | 0) * s.nx + (x | 0)]) return { x, y, age: 0 };
+  }
+  return { x: 0.5, y: s.ny / 2 + 3, age: 0 };
+}
+function advectParticles(steps) {
+  const s = st.solver, P = st.particles;
+  const sub = Math.max(1, Math.ceil(steps * 2 * s.U / 0.5));
+  const h = steps / sub;
+  for (let k = 0; k < P.length; k++) {
+    const p = P[k];
+    for (let j = 0; j < sub; j++) {
+      const v = velAt(p.x, p.y);
+      if (!v) { P[k] = spawn(false); break; }
+      p.x += v[0] * h; p.y += v[1] * h;
+    }
+    p.age += steps;
+    if (P[k] === p && (p.x >= s.nx - 2 || p.x < 0 || p.y < 0.5 || p.y > s.ny - 1.5)) P[k] = spawn(false);
+  }
+}
+function drawParticles(sx, sy) {
+  const ny = st.solver.ny, r = Math.max(1.2, 1.4 * (window.devicePixelRatio || 1));
+  ctx.fillStyle = 'rgba(255,255,255,0.85)';
+  for (const p of st.particles) ctx.fillRect(p.x * sx + sx / 2 - r / 2, (ny - 1 - p.y) * sy + sy / 2 - r / 2, r, r);
+}
+
+// ---------- probe ----------
+cv.addEventListener('mousemove', (e) => {
+  const r = cv.getBoundingClientRect();
+  st.probe = { px: e.clientX - r.left, py: e.clientY - r.top, w: r.width, h: r.height };
+  updateProbe();
+});
+cv.addEventListener('mouseleave', () => { st.probe = null; $('probe').style.display = 'none'; });
+function updateProbe() {
+  const pr = st.probe, el = $('probe');
+  if (!pr || !st.solver) { el.style.display = 'none'; return; }
+  const s = st.solver, d = st.der;
+  const x = Math.min(s.nx - 1, Math.max(0, Math.floor(pr.px / pr.w * s.nx)));
+  const y = Math.min(s.ny - 1, Math.max(0, s.ny - 1 - Math.floor(pr.py / pr.h * s.ny)));
+  const idx = y * s.nx + x, U = s.U;
+  const xD = (x - d.cxc) / d.D, yD = (y - d.cyc) / d.D;
+  let html;
+  if (s.solid[idx]) html = `x/D ${xD.toFixed(2)}  y/D ${yD.toFixed(2)}<br><b>solid (cylinder)</b>`;
+  else {
+    let w = 0;
+    if (x > 0 && y > 0 && x < s.nx - 1 && y < s.ny - 1) w = 0.5 * (s.uy[idx + 1] - s.uy[idx - 1]) - 0.5 * (s.ux[idx + s.nx] - s.ux[idx - s.nx]);
+    html = `x/D ${xD.toFixed(2)}  y/D ${yD.toFixed(2)}  [node ${x}, ${y}]<br>` +
+      `|u|/U ${(Math.hypot(s.ux[idx], s.uy[idx]) / U).toFixed(3)}  u/U ${(s.ux[idx] / U).toFixed(3)}  v/U ${(s.uy[idx] / U).toFixed(3)}<br>` +
+      `ωD/U ${(w * d.D / U).toFixed(3)}  Cp ${s.cp(idx).toFixed(3)}  ρ ${s.rho[idx].toFixed(5)}`;
+  }
+  el.innerHTML = html; el.style.display = 'block';
+  const ew = el.offsetWidth, eh = el.offsetHeight;
+  el.style.left = Math.min(pr.px + 14, pr.w - ew - 4) + 'px';
+  el.style.top = (pr.py + 14 + eh > pr.h ? pr.py - eh - 10 : pr.py + 14) + 'px';
+}
+
+// ============================================================ snapshots / filmstrip
+function snapshot() {
+  if (!st.solver) return;
+  const c = document.createElement('canvas'); c.width = cv.width; c.height = cv.height;
+  c.getContext('2d').drawImage(cv, 0, 0);
+  const s = st.solver;
+  const thumb = document.createElement('canvas'); const th = 116; thumb.height = th; thumb.width = Math.round(th * c.width / c.height);
+  thumb.getContext('2d').drawImage(c, 0, 0, thumb.width, thumb.height);
+  st.film.push({ t: s.t * s.U / s.D, mode: st.viz, full: c.toDataURL('image/png'), thumb: thumb.toDataURL('image/png') });
+  if (st.film.length > 24) st.film.shift();
+  renderFilm();
+}
+function renderFilm() {
+  const f = $('film'); f.innerHTML = '';
+  st.film.forEach((s) => {
+    const fig = document.createElement('figure');
+    fig.innerHTML = `<img src="${s.thumb}" alt="t* ${s.t.toFixed(1)}"><figcaption>t* ${s.t.toFixed(1)} · ${s.mode}</figcaption>`;
+    fig.onclick = () => { const lb = $('lightbox'); lb.querySelector('img').src = s.full; lb.querySelector('div').textContent = `t* = ${s.t.toFixed(2)} · ${s.mode} · Re ${st.der.Re.toFixed(1)} (click to close)`; lb.style.display = 'flex'; };
+    f.appendChild(fig);
+  });
+}
+$('lightbox').onclick = () => { $('lightbox').style.display = 'none'; };
+
+// ============================================================ metrics
+function setText(id, v) { const e = $(id); if (e.__v !== v) { e.innerHTML = v; e.__v = v; } }
+function refreshMetrics(force) {
+  const s = st.solver, d = st.der; if (!s) return;
+  const U = s.U, tStar = s.t * U / s.D;
+  setText('hclock', `step ${s.t.toLocaleString()} · t* ${tStar.toFixed(2)}`);
+  setText('mRe', fmt(d.Re, 1)); setText('mT', tStar.toFixed(2));
+  setText('mTau', d.tau.toFixed(4)); setText('mNu', fmtE(d.nu, 3) + ' <span style="color:var(--dim)">lu</span>');
+  setText('mU', U.toFixed(3) + ' <span style="color:var(--dim)">lu</span>');
+  if (s.t === 0) {
+    for (const id of ['mSteps', 'mCd', 'mCl', 'mUavg', 'mUmax', 'mMa', 'mRho', 'mRhoR', 'mCpF', 'mCpB', 'mCpR', 'mCdMean', 'mClAmp', 'mSt', 'mLr', 'mWin']) setText(id, '—');
+    setText('mState', '<span class="badge developing">not started</span>');
+    setText('mPerf', '—');
+    updateProbe(); updatePhys(); return;
+  }
+  const c = s.coefficients();
+  setText('mCd', fmt(c.Cd, 4)); setText('mCl', (c.Cl >= 0 ? '+' : '') + fmt(c.Cl, 4));
+  setText('mUavg', fmt(s.meanUx / U, 4)); setText('mUmax', fmt(s.maxU / U, 3)); setText('mMa', fmt(s.maxU * Math.sqrt(3), 3));
+  setText('mRho', fmt(s.meanRho, 5)); setText('mRhoR', `${fmt(s.minRho, 4)} – ${fmt(s.maxRho, 4)}`);
+  // pressure at stagnation and base
+  const q = 0.5 * U * U, nx = s.nx, yc = Math.round(d.cyc);
+  let xf = Math.floor(d.cxc - d.D / 2); while (xf > 0 && s.solid[yc * nx + xf]) xf--;
+  let xb = Math.ceil(d.cxc + d.D / 2); while (xb < nx - 1 && s.solid[yc * nx + xb]) xb++;
+  setText('mCpF', fmt(s.cp(yc * nx + xf), 3));
+  setText('mCpB', fmt(s.cp(yc * nx + xb), 3));
+  setText('mCpR', `${fmt((s.minRho - s.rhoIn) / 3 / q, 2)} / ${fmt((s.maxRho - s.rhoIn) / 3 / q, 2)}`);
+  // windowed statistics
+  const S = st.series, sum = LBM.summarise(S.t, S.cd, S.cl);
+  st.summary = sum;
+  if (st.unstable) setText('mState', '<span class="badge unstable">unstable: stopped</span>');
+  else if (sum) setText('mState', `<span class="badge ${sum.state}">${sum.stateText}</span>`);
+  else setText('mState', '<span class="badge developing">collecting data…</span>');
+  if (sum) {
+    setText('mWin', `${sum.window[0].toFixed(1)} – ${sum.window[1].toFixed(1)}`);
+    setText('mCdMean', `${fmt(sum.CdMean, 4)} <span style="color:var(--dim)">±${fmt(sum.CdStd, 3)}</span>`);
+    setText('mClAmp', `${fmt(sum.ClAmp, 4)} / ${fmt(sum.ClRms, 4)}`);
+    setText('mSt', sum.St ? `${fmt(sum.St, 4)} <span style="color:var(--dim)">${sum.cycles} cyc</span>` : (sum.state === 'steady' ? 'no shedding' : '—'));
+  } else { for (const id of ['mWin', 'mCdMean', 'mClAmp', 'mSt']) setText(id, '—'); }
+  const lr = (sum && sum.state === 'steady') ? s.recirculationLength() : null;
+  setText('mLr', lr ? fmt(lr.LrD, 3) : (sum && sum.state === 'steady' ? 'no reverse flow' : (sum && sum.state === 'shedding' ? 'n/a (unsteady)' : '—')));
+  setText('mSteps', s.t.toLocaleString());
+  setText('mPerf', st.running && st.perf.sps ? `${Math.round(st.perf.sps)} steps/s · ${st.perf.mlups.toFixed(1)} MLUPS` : (st.running ? 'measuring…' : 'idle'));
+  updateProbe(); updatePhys(); updateButtons();
+}
+function updatePhys() {
+  const d = st.solver && paramsEqual(st.p, st.applied) ? st.der : derive(st.p);
+  const F = FLUIDS[$('fluid').value];
+  const Dp = Math.max(1e-6, parseFloat($('Dphys').value) || 10) / 1000;
+  const Up = d.Re * F.nu / Dp, dx = Dp / d.D, dt = d.U / Up * dx;
+  const s = st.solver, sum = st.summary;
+  const rows = [
+    ['Free-stream speed U', Up < 0.01 ? (Up * 1000).toPrecision(3) + ' mm/s' : Up.toPrecision(3) + ' m/s'],
+    ['Lattice spacing Δx', (dx * 1000).toPrecision(3) + ' mm'],
+    ['Time step Δt', dt < 1e-3 ? (dt * 1e6).toPrecision(3) + ' µs' : (dt * 1000).toPrecision(3) + ' ms'],
+    ['Simulated physical time', s ? (s.t * dt).toPrecision(3) + ' s' : '—'],
+    ['Domain size', `${(d.nx * dx * 100).toPrecision(3)} × ${(d.ny * dx * 100).toPrecision(3)} cm`],
+    ['Shedding frequency f = St·U/D', sum && sum.St ? (sum.St * Up / Dp).toPrecision(3) + ' Hz' : '—'],
+    ['Mean drag per metre span', sum ? (sum.CdMean * 0.5 * F.rho * Up * Up * Dp).toPrecision(3) + ' N/m' : '—']
+  ];
+  const html = rows.map(r => `<span>${r[0]}</span><span>${r[1]}</span>`).join('');
+  setText('phys', html);
+}
+
+// ============================================================ charts (native canvas)
+function niceStep(span, n) {
+  const raw = span / n, mag = Math.pow(10, Math.floor(Math.log10(raw))), e = raw / mag;
+  return (e >= 7.5 ? 10 : e >= 3.5 ? 5 : e >= 1.5 ? 2 : 1) * mag;
+}
+function drawChart(canvas, cfg) {
+  const dpr = window.devicePixelRatio || 1, W = canvas.clientWidth, H = canvas.clientHeight;
+  if (!W || !H) return;
+  if (canvas.width !== Math.round(W * dpr) || canvas.height !== Math.round(H * dpr)) { canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr); }
+  const c = canvas.getContext('2d');
+  c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, W, H);
+  const pad = { l: 52, r: 10, t: 8, b: 30 }, pw = W - pad.l - pad.r, ph = H - pad.t - pad.b;
+  let xmin = Infinity, xmax = -Infinity, ymin = Infinity, ymax = -Infinity, any = false;
+  for (const s of cfg.series) {
+    const X = s.x, Y = s.y; if (!X) continue;
+    const i0 = s.from || 0;
+    for (let i = i0; i < X.length; i++) {
+      const y = Y[i]; if (!Number.isFinite(y) || !Number.isFinite(X[i])) continue; any = true;
+      if (X[i] < xmin) xmin = X[i]; if (X[i] > xmax) xmax = X[i];
+      if (!s.noScale && !(cfg.yFromX !== undefined && X[i] < cfg.yFromX)) { if (y < ymin) ymin = y; if (y > ymax) ymax = y; }
+    }
+  }
+  c.font = '11px system-ui'; c.fillStyle = '#64748b'; c.textAlign = 'center'; c.textBaseline = 'middle';
+  if (!any || ymin === Infinity) {
+    c.strokeStyle = '#1f2a3c'; c.strokeRect(pad.l, pad.t, pw, ph);
+    c.fillText(cfg.empty || 'No data yet', pad.l + pw / 2, pad.t + ph / 2); return;
+  }
+  if (cfg.xMin !== undefined) xmin = cfg.xMin; if (cfg.xMax !== undefined) xmax = Math.max(cfg.xMax, xmax);
+  if (xmax - xmin < 1e-9) { xmin -= 1; xmax += 1; }
+  if (cfg.xPad) { const sp = xmax - xmin; xmax += cfg.xPad * sp; if (cfg.xMin === undefined) xmin -= cfg.xPad * sp; }
+  if (cfg.yZero) { ymin = Math.min(0, ymin); }
+  let span = ymax - ymin; if (span < (cfg.minSpan || 1e-6)) { const m = (ymax + ymin) / 2; span = cfg.minSpan || 1e-6; ymin = m - span / 2; ymax = m + span / 2; }
+  ymin -= 0.08 * span; ymax += 0.08 * span;
+  if (cfg.symmetric) { const a = Math.max(Math.abs(ymin), Math.abs(ymax)); ymin = -a; ymax = a; }
+  const X = (x) => pad.l + (x - xmin) / (xmax - xmin) * pw, Y = (y) => pad.t + (1 - (y - ymin) / (ymax - ymin)) * ph;
+  // window band
+  if (cfg.band) { c.fillStyle = 'rgba(56,189,248,0.08)'; const a = X(Math.max(xmin, cfg.band[0])), b = X(Math.min(xmax, cfg.band[1])); c.fillRect(a, pad.t, b - a, ph); }
+  // grid & ticks
+  c.strokeStyle = '#1a2436'; c.lineWidth = 1; c.fillStyle = '#7d8aa0';
+  const ys = niceStep(ymax - ymin, 4), xs = niceStep(xmax - xmin, 6);
+  const yd = Math.max(0, -Math.floor(Math.log10(ys) + 1e-9)), xd = Math.max(0, -Math.floor(Math.log10(xs) + 1e-9));
+  c.textAlign = 'right';
+  for (let v = Math.ceil(ymin / ys) * ys; v <= ymax + 1e-12; v += ys) {
+    const yy = Math.round(Y(v)) + 0.5; c.beginPath(); c.moveTo(pad.l, yy); c.lineTo(pad.l + pw, yy); c.stroke();
+    c.fillText((Math.abs(v) < ys * 1e-6 ? 0 : v).toFixed(Math.min(yd, 5)), pad.l - 5, yy);
+  }
+  c.textAlign = 'center'; c.textBaseline = 'top';
+  for (let v = Math.ceil(xmin / xs) * xs; v <= xmax + 1e-12; v += xs) {
+    const xx = Math.round(X(v)) + 0.5; c.beginPath(); c.moveTo(xx, pad.t); c.lineTo(xx, pad.t + ph); c.stroke();
+    c.fillText(v.toFixed(Math.min(xd, 4)), xx, pad.t + ph + 4);
+  }
+  if (cfg.zeroLine && ymin < 0 && ymax > 0) { c.strokeStyle = '#334155'; c.beginPath(); c.moveTo(pad.l, Y(0)); c.lineTo(pad.l + pw, Y(0)); c.stroke(); }
+  c.strokeStyle = '#2a3850'; c.strokeRect(pad.l + 0.5, pad.t + 0.5, pw, ph);
+  c.fillStyle = '#93a1b5'; c.fillText(cfg.xLabel || '', pad.l + pw / 2, pad.t + ph + 16);
+  c.save(); c.translate(11, pad.t + ph / 2); c.rotate(-Math.PI / 2); c.textBaseline = 'middle'; c.fillText(cfg.yLabel || '', 0, 0); c.restore();
+  // series
+  c.save(); c.beginPath(); c.rect(pad.l, pad.t, pw, ph); c.clip();
+  for (const s of cfg.series) {
+    const Xs = s.x, Ys = s.y; if (!Xs || !Xs.length) continue;
+    c.strokeStyle = s.color; c.fillStyle = s.color; c.lineWidth = s.width || 1.4; c.setLineDash(s.dash || []);
+    if (s.points) {
+      for (let i = 0; i < Xs.length; i++) {
+        if (!Number.isFinite(Ys[i])) continue;
+        c.beginPath(); c.arc(X(Xs[i]), Y(Ys[i]), s.r || 4, 0, Math.PI * 2);
+        if (s.hollow) { c.lineWidth = 1.6; c.stroke(); } else c.fill();
+      }
+      if (s.connect && Xs.length > 1) { c.lineWidth = 1; c.beginPath(); c.moveTo(X(Xs[0]), Y(Ys[0])); for (let i = 1; i < Xs.length; i++) c.lineTo(X(Xs[i]), Y(Ys[i])); c.stroke(); }
+      continue;
+    }
+    const stride = Math.max(1, Math.floor(Xs.length / (pw * 2)));
+    c.beginPath(); let started = false;
+    for (let i = 0; i < Xs.length; i += stride) {
+      const y = Ys[i]; if (!Number.isFinite(y)) { started = false; continue; }
+      const px = X(Xs[i]), py = Y(y);
+      if (!started) { c.moveTo(px, py); started = true; } else c.lineTo(px, py);
+    }
+    c.stroke();
+  }
+  c.restore(); c.setLineDash([]);
+  // legend
+  const leg = cfg.series.filter(s => s.label);
+  if (leg.length) {
+    c.font = '10.5px system-ui'; c.textAlign = 'left'; c.textBaseline = 'middle';
+    let yy = pad.t + 9;
+    let lw = 0; for (const s of leg.slice(0, 7)) lw = Math.max(lw, c.measureText(s.label).width + 24);
+    const xx = cfg.legend === 'tr' ? pad.l + pw - lw - 4 : pad.l + 8;
+    for (const s of leg.slice(0, 7)) {
+      c.fillStyle = 'rgba(10,14,22,0.75)'; const tw = c.measureText(s.label).width; c.fillRect(xx - 3, yy - 7, tw + 24, 14);
+      c.strokeStyle = s.color; c.fillStyle = s.color; c.lineWidth = 2; c.setLineDash(s.dash || []);
+      if (s.points) { c.beginPath(); c.arc(xx + 7, yy, 3.5, 0, 6.3); s.hollow ? c.stroke() : c.fill(); }
+      else { c.beginPath(); c.moveTo(xx, yy); c.lineTo(xx + 14, yy); c.stroke(); }
+      c.setLineDash([]); c.fillStyle = '#cbd5e1'; c.fillText(s.label, xx + 18, yy); yy += 15;
+    }
+  }
+}
+const CASE_COLORS = ['#f472b6', '#a3e635', '#fb923c', '#c084fc', '#2dd4bf', '#facc15', '#60a5fa', '#f87171'];
+function drawCharts() {
+  const S = st.series; if (!S) return;
+  const sum = st.summary, band = sum ? sum.window : null;
+  const overlay = $('ovCases').checked ? st.cases : [];
+  const ov = (key) => overlay.map((cs, i) => ({ x: cs.hist.t, y: cs.hist[key], color: CASE_COLORS[i % CASE_COLORS.length], width: 1, dash: [4, 3], label: `#${cs.id} Re ${cs.Re.toFixed(0)}`, noScale: false }));
+  const curLab = st.der ? `current Re ${st.der.Re.toFixed(0)}` : '';
+  drawChart($('chCd'), { series: [...ov('cd'), { x: S.t, y: S.cd, color: '#38bdf8', label: overlay.length ? curLab : '', from: Math.floor(S.t.length * 0.03) }],
+    xLabel: 't* = tU/D', yLabel: 'Cd', band, minSpan: 0.02, yFromX: Math.min(4, 0.3 * (S.t[S.t.length - 1] || 0)), legend: 'tr', empty: 'Press Start: drag history appears here' });
+  drawChart($('chCl'), { series: [...ov('cl'), { x: S.t, y: S.cl, color: '#a78bfa', label: overlay.length ? curLab : '' }],
+    xLabel: 't* = tU/D', yLabel: 'Cl', band, symmetric: true, legend: 'tr', zeroLine: true, minSpan: 0.01, empty: 'Lift history' });
+  drawChart($('chU'), { series: [{ x: S.t, y: S.ux, color: '#34d399', label: '⟨u⟩/U (domain mean)' }, { x: S.t, y: S.umax, color: '#fbbf24', label: 'max |u|/U' }],
+    xLabel: 't* = tU/D', yLabel: 'velocity / U', band, minSpan: 0.05, yFromX: Math.min(2, 0.3 * (S.t[S.t.length - 1] || 0)), legend: 'tr', empty: 'Velocity history' });
+  // Cd vs Re from saved cases
+  const cs = st.cases.slice().sort((a, b) => a.Re - b.Re);
+  const groups = {};
+  for (const c of cs) (groups[c.gridKey] = groups[c.gridKey] || []).push(c);
+  const reSeries = [];
+  const gcol = { coarse: '#fb923c', standard: '#38bdf8', fine: '#a3e635' };
+  for (const g of Object.keys(groups)) reSeries.push({ x: groups[g].map(c => c.Re), y: groups[g].map(c => c.CdMean), color: gcol[g] || '#38bdf8', points: true, connect: true, label: `simulation, ${GRIDS[g].label}` });
+  if ($('showRef').checked && cs.length) reSeries.push({ x: REFS.map(r => r.Re), y: REFS.map(r => r.Cd), color: '#e2e8f0', points: true, hollow: true, label: 'published, unconfined (context only)' });
+  drawChart($('chRe'), { series: reSeries, xLabel: 'Reynolds number', yLabel: 'mean Cd', minSpan: 0.4, legend: 'tr', xPad: 0.08,
+    empty: 'Save observations at several Re to build this curve', xMin: 0 });
+  // surface Cp
+  if (st.solver && st.solver.t > 0) {
+    const sp = st.solver.surfaceCp(), up = sp.filter(p => p.upper), lo = sp.filter(p => !p.upper);
+    drawChart($('chCp'), { series: [
+      { x: up.map(p => p.theta), y: up.map(p => p.Cp), color: '#f472b6', label: 'upper surface' },
+      { x: lo.map(p => p.theta), y: lo.map(p => p.Cp), color: '#38bdf8', label: 'lower surface', dash: [5, 3] }],
+      xLabel: 'θ from front stagnation point (deg)', yLabel: 'Cp', zeroLine: true, xMin: 0, xMax: 180, minSpan: 0.5, legend: 'tr' });
+  } else drawChart($('chCp'), { series: [], empty: 'Surface pressure appears once the run starts' });
+}
+
+// ============================================================ cases
+function loadCases() { try { const s = localStorage.getItem('cylinderflow.cases.v1'); if (s) st.cases = JSON.parse(s) || []; } catch (e) { st.cases = []; } }
+function persistCases() { try { localStorage.setItem('cylinderflow.cases.v1', JSON.stringify(st.cases)); } catch (e) { /* storage unavailable: keep in memory */ } }
+function decimate(arr, n) { if (arr.length <= n) return arr.slice(); const k = arr.length / n, out = []; for (let i = 0; i < n; i++) out.push(arr[Math.floor(i * k)]); return out; }
+function saveCase() {
+  const s = st.solver, d = st.der, sum = st.summary;
+  if (!s || st.unstable) { flash('Cannot save: the run is unstable.', 'err'); return; }
+  if (!sum) { flash('Run a little longer first (need ~2 t* of data).', 'warn'); return; }
+  const lr = sum.state === 'steady' ? s.recirculationLength() : null;
+  const id = (st.cases.reduce((m, c) => Math.max(m, c.id), 0) || 0) + 1;
+  const S = st.series;
+  st.cases.push({
+    id, savedAt: new Date().toISOString(), Re: d.Re, U: d.U, D: d.D, nu: d.nu, tau: d.tau, gridKey: st.applied.grid, grid: GRIDS[st.applied.grid].label,
+    blockage: d.blockage, seed: st.applied.seed, sponge: st.applied.sponge, steps: s.t, tStar: s.t * s.U / s.D,
+    window: sum.window, CdMean: sum.CdMean, CdStd: sum.CdStd, ClAmp: sum.ClAmp, ClRms: sum.ClRms, St: sum.St, cycles: sum.cycles,
+    LrD: lr ? lr.LrD : null, state: sum.state, note: '',
+    hist: { t: decimate(S.t, 800), cd: decimate(S.cd, 800), cl: decimate(S.cl, 800) }
+  });
+  persistCases(); renderCases(); drawCharts();
+  flash(`Saved case #${id} (Re ${d.Re.toFixed(1)}, ${sum.stateText.toLowerCase()}).`, 'ok');
+}
+function renderCases() {
+  const T = $('casesTable');
+  if (!st.cases.length) { T.innerHTML = '<tr><td class="empty">No saved observations yet. Run a case, then press “Save observation to comparison”.</td></tr>'; return; }
+  let h = '<tr><th>#</th><th>Re</th><th class="l">Grid</th><th>D</th><th>τ</th><th>t* run</th><th>mean C<sub>D</sub></th><th>C<sub>L</sub> amp</th><th>St</th><th>L<sub>r</sub>/D</th><th class="l">Wake state</th><th class="l">Note</th><th></th></tr>';
+  st.cases.forEach((c, i) => {
+    h += `<tr><td><span style="color:${CASE_COLORS[i % CASE_COLORS.length]}">●</span> ${c.id}</td><td>${c.Re.toFixed(1)}</td><td class="l">${c.grid}</td><td>${c.D}</td><td>${c.tau.toFixed(4)}</td><td>${c.tStar.toFixed(1)}</td>
+      <td>${c.CdMean.toFixed(4)}</td><td>${c.ClAmp.toFixed(4)}</td><td>${c.St ? c.St.toFixed(4) : '—'}</td><td>${c.LrD !== null && c.LrD !== undefined ? c.LrD.toFixed(3) : '—'}</td>
+      <td class="l"><span class="badge ${c.state}">${c.state}</span></td>
+      <td class="l"><input type="text" data-note="${c.id}" value="${(c.note || '').replace(/"/g, '&quot;')}" placeholder="add a note"></td>
+      <td><button class="btn small ghost" data-del="${c.id}" title="Delete">✕</button></td></tr>`;
+  });
+  T.innerHTML = h;
+  T.querySelectorAll('[data-del]').forEach(b => b.onclick = () => { st.cases = st.cases.filter(c => c.id !== +b.dataset.del); persistCases(); renderCases(); drawCharts(); });
+  T.querySelectorAll('[data-note]').forEach(inp => inp.oninput = () => { const c = st.cases.find(c => c.id === +inp.dataset.note); if (c) { c.note = inp.value; persistCases(); } });
+}
+
+// ============================================================ export
+function download(name, text, type) {
+  const blob = text instanceof Blob ? text : new Blob([text], { type: type || 'text/plain' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+function stamp() { const d = st.der; return `Re${d.Re.toFixed(0)}_D${d.D}_${GRIDS[st.applied.grid].label.replace('×', 'x')}`; }
+function configObject() {
+  const d = st.der;
+  return { grid: { nx: d.nx, ny: d.ny, key: st.applied.grid }, Re: d.Re, U_lattice: d.U, D_cells: d.D, nu_lattice: d.nu, tau: d.tau,
+    Mach_inlet: d.Ma, blockage: d.blockage, cylinder_centre: [d.cxc, d.cyc], upstream_D: d.upstream, downstream_D: d.downstream,
+    symmetry_seed: st.applied.seed ? { type: 'Gaussian vortex', peak_velocity_over_U: SEED_AMP, position: '1.5 D behind centre', core_radius_D: 0.5 } : null,
+    outlet_absorbing_layer: st.applied.sponge ? { fraction_of_nx: SPONGE_FRAC, tau_max: Math.max(1, d.tau) } : null,
+    boundaries: { inlet: 'equilibrium velocity, density from first interior column', outlet: 'zero-gradient copy', lateral: 'free-slip (specular)', cylinder: 'half-way bounce-back' },
+    collision: 'BGK', lattice: 'D2Q9', force_method: 'momentum exchange', units: 'lattice (dx = dt = 1, rho0 = 1)' };
+}
+function exportCSV() {
+  if (!st.series || !st.series.t.length) { flash('No time-series data yet.', 'warn'); return; }
+  const S = st.series, d = st.der;
+  let txt = `# CylinderFlow time series (D2Q9 BGK LBM)\n# exported ${new Date().toISOString()}\n# Re=${d.Re} U=${d.U} D=${d.D} nu=${d.nu} tau=${d.tau} grid=${d.nx}x${d.ny} seed=${st.applied.seed} absorbing_layer=${st.applied.sponge}\n`;
+  if (st.unstable) txt += `# WARNING: run stopped as numerically unstable: ${st.solver.statusMsg}\n`;
+  txt += 'step,t_star,Cd,Cl,mean_ux_over_U,max_u_over_U,mean_rho\n';
+  for (let i = 0; i < S.t.length; i++) txt += `${S.step[i]},${S.t[i].toFixed(5)},${S.cd[i].toPrecision(8)},${S.cl[i].toPrecision(8)},${S.ux[i].toPrecision(8)},${S.umax[i].toPrecision(8)},${S.rho[i].toPrecision(10)}\n`;
+  download(`cylinderflow_timeseries_${stamp()}.csv`, txt, 'text/csv');
+}
+function exportJSON() {
+  if (!st.solver) return;
+  const s = st.solver, S = st.series;
+  const obj = { application: 'CylinderFlow', exported: new Date().toISOString(), configuration: configObject(),
+    run: { steps: s.t, t_star: s.t * s.U / s.D, status: s.status, status_message: s.statusMsg || null },
+    summary: st.summary, recirculation_length_over_D: st.summary && st.summary.state === 'steady' ? (s.recirculationLength() || {}).LrD || null : null,
+    time_series: { t_star: S.t, step: S.step, Cd: S.cd, Cl: S.cl, mean_ux_over_U: S.ux, max_u_over_U: S.umax, mean_rho: S.rho },
+    surface_Cp: s.t ? s.surfaceCp() : [], saved_cases: st.cases };
+  download(`cylinderflow_results_${stamp()}.json`, JSON.stringify(obj, null, 1), 'application/json');
+}
+function exportField() {
+  const s = st.solver; if (!s || !s.t) { flash('Run the simulation first.', 'warn'); return; }
+  s.vorticity(st.vort);
+  const d = st.der, U = s.U, q = 0.5 * U * U;
+  const parts = [`# CylinderFlow instantaneous field, step ${s.t}, t*=${(s.t * U / s.D).toFixed(4)}, Re=${d.Re}, lattice units; x_D,y_D relative to cylinder centre; Cp referenced to mean inlet-plane density ${s.rhoIn.toFixed(8)}\nx,y,x_D,y_D,solid,ux,uy,rho,u_over_U,v_over_U,Cp,vorticity_D_over_U\n`];
+  for (let y = 0; y < s.ny; y++) {
+    let row = '';
+    for (let x = 0; x < s.nx; x++) {
+      const i = y * s.nx + x;
+      row += `${x},${y},${((x - d.cxc) / d.D).toFixed(4)},${((y - d.cyc) / d.D).toFixed(4)},${s.solid[i]},${s.ux[i].toExponential(6)},${s.uy[i].toExponential(6)},${s.rho[i].toFixed(8)},${(s.ux[i] / U).toFixed(6)},${(s.uy[i] / U).toFixed(6)},${s.cp(i).toFixed(6)},${(st.vort[i] * d.D / U).toFixed(6)}\n`;
+    }
+    parts.push(row);
+  }
+  download(`cylinderflow_field_${stamp()}_step${s.t}.csv`, new Blob(parts, { type: 'text/csv' }));
+}
+function exportPNG() { cv.toBlob((b) => download(`cylinderflow_${st.viz}_${stamp()}_step${st.solver.t}.png`, b)); }
+
+// ============================================================ UI wiring
+function setStatus(kind, text) {
+  const el = $('status'); el.className = 'status ' + kind;
+  const map = { ready: 'Ready', running: 'Running', paused: 'Paused', unstable: 'Unstable: stopped', pending: 'Parameters changed' };
+  $('statusText').textContent = text || map[kind] || kind;
+}
+function updateButtons() {
+  const pending = !paramsEqual(st.p, st.applied), valid = !derive(st.p).errors.length;
+  $('btnStart').disabled = st.running || (st.unstable && !pending) || !valid;
+  $('btnStart').textContent = (st.solver && st.solver.t > 0 && !pending) ? '▶ Resume' : '▶ Start';
+  $('btnPause').disabled = !st.running;
+  $('btnApply').disabled = !pending || !valid;
+  $('btnSave').disabled = !st.solver || st.unstable || !st.solver.t;
+}
+let flashTimer = null;
+function flash(msg, kind) {
+  const b = $('banner');
+  if (st.unstable && kind !== 'err') return;
+  b.innerHTML = `<div class="msg ${kind === 'err' ? 'err' : kind === 'warn' ? 'warn' : 'ok'}">${msg}</div>`; b.style.display = 'block';
+  clearTimeout(flashTimer); flashTimer = setTimeout(() => { if (!st.unstable) b.style.display = 'none'; }, 3500);
+}
+function syncControls() {
+  const p = st.p, g = GRIDS[p.grid];
+  $('grid').value = p.grid;
+  document.querySelectorAll('#driveSeg button').forEach(b => b.classList.toggle('on', b.dataset.v === p.drive));
+  $('fRe').style.display = p.drive === 'Re' ? '' : 'none'; $('fNu').style.display = p.drive === 'nu' ? '' : 'none';
+  $('Re').value = p.Re; $('ReNum').value = p.Re; $('nu').value = Math.log10(p.nu);
+  $('U').value = p.U; $('D').max = Math.floor(0.25 * g.ny); $('D').value = p.D;
+  $('seed').checked = p.seed; $('sponge').checked = p.sponge;
+}
+function updateParamPanel() {
+  const d = derive(st.p);
+  $('ReVal').textContent = d.Re.toFixed(1); $('nuVal').textContent = d.nu.toExponential(3);
+  $('UVal').textContent = st.p.U.toFixed(3); $('DVal').textContent = st.p.D + ' cells';
+  const rows = [
+    ['Reynolds number', d.Re.toFixed(2)], ['Viscosity ν', d.nu.toExponential(3)], ['Relaxation time τ', d.tau.toFixed(4)],
+    ['Inlet Mach U√3', d.Ma.toFixed(3)], ['Blockage D/H', (100 * d.blockage).toFixed(1) + ' %'],
+    ['Upstream / downstream', `${d.upstream.toFixed(1)} D / ${d.downstream.toFixed(1)} D`],
+    ['Lattice nodes', d.cells.toLocaleString()], ['Steps per t* (D/U)', d.stepsPerTstar.toFixed(0)]
+  ];
+  $('derived').innerHTML = rows.map(r => `<span>${r[0]}</span><span>${r[1]}</span>`).join('');
+  const m = [];
+  for (const e of d.errors) m.push(`<div class="msg err">✕ ${e}</div>`);
+  for (const w of d.warnings) m.push(`<div class="msg warn">⚠ ${w}</div>`);
+  for (const i of d.infos) m.push(`<div class="msg info">ℹ ${i}</div>`);
+  if (!d.errors.length && !d.warnings.length) m.push('<div class="msg ok">✓ Within the stable, well-resolved operating range.</div>');
+  const pending = !paramsEqual(st.p, st.applied);
+  if (pending && st.solver) m.push('<div class="msg info">Parameters differ from the running case. Press <b>Apply</b> (or Start) to reset with them.</div>');
+  $('paramMsgs').innerHTML = m.join('');
+  if (pending && !st.running && !st.unstable) setStatus('pending');
+  else if (!pending && $('status').classList.contains('pending')) setStatus(st.running ? 'running' : (st.solver && st.solver.t ? 'paused' : 'ready'));
+  updateButtons(); updatePhys();
+}
+function onParamChange() { updateParamPanel(); }
+
+$('grid').onchange = () => { st.p.grid = $('grid').value; st.p.D = GRIDS[st.p.grid].D; syncControls(); onParamChange(); };
+document.querySelectorAll('#driveSeg button').forEach(b => b.onclick = () => {
+  const d = derive(st.p); st.p.drive = b.dataset.v;
+  if (st.p.drive === 'nu') st.p.nu = d.nu; else st.p.Re = Math.min(300, Math.max(5, Math.round(d.Re)));
+  syncControls(); onParamChange();
+});
+$('Re').oninput = () => { st.p.Re = +$('Re').value; $('ReNum').value = st.p.Re; onParamChange(); };
+$('ReNum').onchange = () => { let v = Math.round(+$('ReNum').value); if (!Number.isFinite(v)) v = 100; v = Math.min(300, Math.max(5, v)); st.p.Re = v; syncControls(); onParamChange(); };
+$('nu').oninput = () => { st.p.nu = Math.pow(10, +$('nu').value); onParamChange(); };
+$('U').oninput = () => { st.p.U = +(+$('U').value).toFixed(3); onParamChange(); };
+$('D').oninput = () => { st.p.D = +$('D').value; onParamChange(); };
+$('seed').onchange = () => { st.p.seed = $('seed').checked; onParamChange(); };
+$('sponge').onchange = () => { st.p.sponge = $('sponge').checked; onParamChange(); };
+$('fluid').onchange = updatePhys; $('Dphys').oninput = updatePhys;
+$('btnApply').onclick = () => { st.running = false; resetSim(false); };
+$('btnStart').onclick = start; $('btnPause').onclick = pause;
+$('btnReset').onclick = () => { st.p = Object.assign({}, st.applied || st.p); syncControls(); resetSim(false); };
+$('speed').oninput = () => { st.stepsPerFrame = +$('speed').value; $('speedVal').textContent = st.stepsPerFrame + ' steps/frame'; };
+document.querySelectorAll('#vtabs button').forEach(b => b.onclick = () => {
+  st.viz = b.dataset.v; document.querySelectorAll('#vtabs button').forEach(x => x.classList.toggle('on', x === b)); cbarKey = '';
+});
+$('rangeMul').onchange = () => { st.rangeMul = +$('rangeMul').value; cbarKey = ''; };
+$('ovParticles').onchange = () => { if ($('ovParticles').checked) initParticles(); };
+$('btnSnap').onclick = snapshot;
+$('btnClearFilm').onclick = () => { st.film = []; renderFilm(); };
+$('btnFull').onclick = toggleFull;
+function toggleFull() {
+  const el = $('simcard');
+  if (document.fullscreenElement) document.exitFullscreen();
+  else if (el.requestFullscreen) el.requestFullscreen().catch(() => flash('Full screen was refused by the browser.', 'warn'));
+}
+document.addEventListener('fullscreenchange', () => { sizeCanvas(); cbarKey = ''; });
+$('btnSave').onclick = saveCase;
+$('btnCSV').onclick = exportCSV; $('btnJSON').onclick = exportJSON; $('btnField').onclick = exportField; $('btnPNG').onclick = exportPNG;
+$('btnClearCases').onclick = () => { if (!st.cases.length) return; if (confirm('Delete all saved cases?')) { st.cases = []; persistCases(); renderCases(); drawCharts(); } };
+$('ovCases').onchange = () => drawCharts(); $('showRef').onchange = () => drawCharts();
+
+// presets
+const presetBox = $('presets');
+PRESETS.forEach(pr => {
+  const b = document.createElement('button'); b.className = 'preset';
+  b.innerHTML = `<b>${pr.name}</b><span>${pr.desc}</span>`;
+  b.onclick = () => {
+    st.p = Object.assign({}, st.p, { drive: 'Re', Re: pr.Re, U: 0.08, D: GRIDS[st.p.grid].D, seed: true, sponge: true });
+    syncControls(); st.running = false; resetSim(false); start();
+  };
+  presetBox.appendChild(b);
+});
+
+// docs drawer
+function openDoc(tab) {
+  $('drawer').classList.add('open');
+  document.querySelectorAll('#dtabs button').forEach(b => b.classList.toggle('sel', b.dataset.t === tab));
+  document.querySelectorAll('.doc[data-p]').forEach(d => d.style.display = d.dataset.p === tab ? '' : 'none');
+  document.querySelector('.dbody').scrollTop = 0;
+}
+document.querySelectorAll('[data-doc]').forEach(b => b.onclick = () => openDoc(b.dataset.doc));
+document.querySelectorAll('#dtabs button').forEach(b => b.onclick = () => openDoc(b.dataset.t));
+$('dclose').onclick = () => $('drawer').classList.remove('open');
+$('drawer').onclick = (e) => { if (e.target === $('drawer')) $('drawer').classList.remove('open'); };
+$('btnVerify').onclick = () => {
+  $('verifySummary').textContent = 'running…'; $('btnVerify').disabled = true;
+  setTimeout(() => {
+    const t0 = performance.now(); let res;
+    try { res = runSelfTests(LBM, true); } catch (e) { res = [{ group: 'Suite', name: 'Exception', pass: false, detail: String(e) }]; }
+    const ms = performance.now() - t0, np = res.filter(r => r.pass).length;
+    $('verifySummary').innerHTML = `<span class="${np === res.length ? 'pass' : 'fail'}">${np} / ${res.length} checks passed</span> <span style="color:var(--dim)">(${(ms / 1000).toFixed(1)} s, ${new Date().toLocaleTimeString()})</span>`;
+    $('verifyOut').innerHTML = '<table><tr><th>Group</th><th>Check</th><th>Result</th><th>Measured</th></tr>' +
+      res.map(r => `<tr><td>${r.group}</td><td style="white-space:normal">${r.name}</td><td class="${r.pass ? 'pass' : 'fail'}">${r.pass ? 'PASS' : 'FAIL'}</td><td style="white-space:normal;font-family:var(--mono);font-size:11.5px">${r.detail}</td></tr>`).join('') + '</table>';
+    $('btnVerify').disabled = false;
+    window.__verifyResults = res;
+  }, 30);
+};
+
+// keyboard
+document.addEventListener('keydown', (e) => {
+  const tag = (e.target.tagName || '').toLowerCase();
+  if (tag === 'input' || tag === 'select' || tag === 'textarea') return;
+  if (e.key === 'Escape') { $('drawer').classList.remove('open'); $('lightbox').style.display = 'none'; }
+  if ($('drawer').classList.contains('open')) return;
+  if (e.code === 'Space') { e.preventDefault(); st.running ? pause() : start(); }
+  else if (e.key === 'r' || e.key === 'R') $('btnReset').click();
+  else if (e.key === 'f' || e.key === 'F') toggleFull();
+});
+
+// resize handling
+const ro = new ResizeObserver(() => { sizeCanvas(); cbarKey = ''; drawCharts(); });
+ro.observe($('canvasWrap')); ro.observe($('bottom'));
+window.addEventListener('resize', () => { sizeCanvas(); cbarKey = ''; });
+
+// ============================================================ boot
+loadCases(); renderCases();
+syncControls();
+resetSim(false);
+sizeCanvas(); updateParamPanel(); drawCharts();
+requestAnimationFrame(frame);
+// minimal hook for automated testing (read-only state access)
+window.CylinderFlow = { state: st, LBM, derive };
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,162 @@
+[
+ [
+  "loads, status Ready",
+  true,
+  ""
+ ],
+ [
+  "no external requests",
+  true,
+  "[]"
+ ],
+ [
+  "preset starts running",
+  true,
+  ""
+ ],
+ [
+  "solver advancing in browser",
+  true,
+  "{'t': 1154, 'sps': 187.7184223664503, 'ml': 12.01397903145282}"
+ ],
+ [
+  "UI stays responsive (max frame interval < 100 ms)",
+  true,
+  "33.5 ms"
+ ],
+ [
+  "Re100 develops periodic shedding in browser",
+  true,
+  "{'CdMean': 1.659948382551609, 'ClAmp': 0.42256111596356893, 'St': 0.18085557771229066, 'state': 'shedding'}"
+ ],
+ [
+  "hover probe shows values",
+  true,
+  "x/D 4.95 y/D 0.03 [node 179, 80] | |u|/U 1.055 u/U 0.881 v/U -0.580 | \u03c9D/U -0.113 Cp -0.338 \u03c1 0.99932"
+ ],
+ [
+  "metrics panel populated",
+  true,
+  "{'St': '0.1814 6 cyc', 'Cd': '1.6352', 'state': 'Periodic vortex shedding'}"
+ ],
+ [
+  "auto snapshots captured",
+  true,
+  "7"
+ ],
+ [
+  "save observation adds case",
+  true,
+  ""
+ ],
+ [
+  "pause stops stepping",
+  true,
+  "(19104, 19104)"
+ ],
+ [
+  "resume continues",
+  true,
+  ""
+ ],
+ [
+  "Space key pauses",
+  true,
+  ""
+ ],
+ [
+  "CSV export",
+  true,
+  "dl/cylinderflow_timeseries_Re100_D20_400x160.csv 1486 lines"
+ ],
+ [
+  "JSON export",
+  true,
+  "dl/cylinderflow_results_Re100_D20_400x160.json"
+ ],
+ [
+  "Field CSV export",
+  true,
+  "dl/cylinderflow_field_Re100_D20_400x160_step19275.csv 64002 lines"
+ ],
+ [
+  "PNG export",
+  true,
+  "dl/cylinderflow_vorticity_Re100_D20_400x160_step19275.png"
+ ],
+ [
+  "Re20 converges to steady wake with recirculation",
+  true,
+  "{'Cd': 2.658434274025384, 'ClAmp': 0.0007765111765459915, 'Lr/D': '1.010'}"
+ ],
+ [
+  "second case saved; table has 2 rows",
+  true,
+  ""
+ ],
+ [
+  "reset returns to step 0, Ready",
+  true,
+  ""
+ ],
+ [
+  "param change flags pending + enables Apply",
+  true,
+  ""
+ ],
+ [
+  "apply builds new solver at Re 150",
+  true,
+  ""
+ ],
+ [
+  "\u03c4<0.505 rejected; Apply & Start disabled",
+  true,
+  "\u2715 \u03c4 = 0.5016 is below 0.505: BGK collision is unstable or badly under-resolved this close "
+ ],
+ [
+  "\u03bd-driven mode derives Re = UD/\u03bd",
+  true,
+  "('80.0', 0.01999861869632744)"
+ ],
+ [
+  "runs in \u03bd mode",
+  true,
+  ""
+ ],
+ [
+  "instability detected and stopped with explanation (forced \u03c4\u22480.5001, U=0.3)",
+  true,
+  "Local velocity 0.452 exceeded 0.45 lattice units (Mach 0.78) at step 454."
+ ],
+ [
+  "reset clears unstable state",
+  true,
+  ""
+ ],
+ [
+  "full screen toggles",
+  true,
+  "simcard"
+ ],
+ [
+  "in-app verification suite passes",
+  true,
+  "24/24"
+ ],
+ [
+  "saved cases persist after reload",
+  true,
+  ""
+ ],
+ [
+  "responsive: no horizontal overflow at 760 px",
+  true,
+  "760"
+ ],
+ [
+  "no console errors/warnings",
+  true,
+  "[]"
+ ]
+]
