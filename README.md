@@ -2,9 +2,13 @@
 
 A self-contained, browser-based simulator of two-dimensional viscous flow past a circular cylinder. It uses a **D2Q9 lattice Boltzmann solver (BGK collision)** written in vanilla JavaScript. The app is one file, `index.html`, with nothing to install, no libraries, no server and no internet connection needed.
 
+![Kármán vortex street at Re = 100: vorticity field from the simulator](docs/re100_vorticity.jpg)
+
+**▶ Live demo: https://echoecho0007.github.io/CylinderFlow/** (opens and runs in the browser)
+
 ## Run it
 
-1. Download `index.html` (or clone the repo).
+1. Open the live demo above, or download `index.html` (or clone the repo).
 2. Double-click it to open it in Chrome, Edge or Firefox.
 3. Click a preset, e.g. **Intermediate · 100**.
 
